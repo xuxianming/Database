@@ -1,13 +1,11 @@
 #ifndef DATAMODEL_DESIGN_PORT_H_
 #define DATAMODEL_DESIGN_PORT_H_
 #include "DataModel/Design/DesignObject.h"
-#include "DataModel/Design/MemeryMgr.h"
 namespace db {
 class Port : public DesignObject {
-    friend class DesignMemoryMgr;
-
 public:
     Port();
+    ~Port() override;
     size_t GetSize() const override;
 
 private:

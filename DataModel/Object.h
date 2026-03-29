@@ -13,7 +13,7 @@ public:
     Object()          = default;
     virtual ~Object() = default;
 
-    DMObjectType          GetType() const;
+    DMObjectType        GetType() const;
     virtual std::string PathName();
     virtual size_t      GetSize() const;
     void                SetType(DMObjectType type);
@@ -23,7 +23,7 @@ public:
     void                SetObjectIdx(uint32_t idx);
 
 private:
-    uint64_t m_obj_id{};  // 高8位:类型, 低56位:实际ID
+    uint64_t m_obj_id{};
     uint32_t m_name_id{};
 };
 }  // namespace db

@@ -1,13 +1,11 @@
 #ifndef DATAMODEL_DESIGN_BUSNET_H_
 #define DATAMODEL_DESIGN_BUSNET_H_
 #include "DataModel/Design/DesignObject.h"
-#include "DataModel/Design/MemeryMgr.h"
 namespace db {
 class BusNet : public DesignObject {
-    friend class DesignMemoryMgr;
-
 public:
-    BusNet();
+    BusNet()           = default;
+    ~BusNet() override = default;
     size_t GetSize() const override;
 
 private:

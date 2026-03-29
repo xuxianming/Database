@@ -2,14 +2,12 @@
 #define DATAMODEL_DESIGN_NET_H_
 
 #include <cstdint>
-#include "DataModel/Design/MemeryMgr.h"
 #include "DataModel/Design/NetBase.h"
 namespace db {
 class Net : public NetBase {
-    friend class DesignMemoryMgr;
-
 public:
-    Net();
+    Net()           = default;
+    ~Net() override = default;
     size_t GetSize() const override;
 
 private:

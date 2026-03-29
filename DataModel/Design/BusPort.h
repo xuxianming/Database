@@ -4,10 +4,9 @@
 #include "DataModel/Design/DesignObject.h"
 namespace db {
 class BusPort : public DesignObject {
-    friend class DesignMemoryMgr;
-
 public:
-    BusPort();
+    BusPort()           = default;
+    ~BusPort() override = default;
     size_t GetSize() const override;
 
 private:

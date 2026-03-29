@@ -1,10 +1,11 @@
 #ifndef DATAMODEL_DESIGN_PINBASE_H_
 #define DATAMODEL_DESIGN_PINBASE_H_
 #include "DataModel/Design/DesignObject.h"
-#include "DataModel/Design/MemeryMgr.h"
 namespace db {
 class PinBase : public DesignObject {
-    friend class DesignMemoryMgr;
+public:
+    PinBase()           = default;
+    ~PinBase() override = default;
 
 private:
     uint32_t m_port_id;

@@ -1,13 +1,11 @@
 #ifndef DATAMODEL_DESIGN_DESIGN_H_
 #define DATAMODEL_DESIGN_DESIGN_H_
 #include "DataModel/Design/DesignObject.h"
-#include "DataModel/Design/MemeryMgr.h"
 namespace db {
 class Design : public DesignObject {
-    friend class DesignMemoryMgr;
-
 public:
-    Design();
+    Design()           = default;
+    ~Design() override = default;
     size_t GetSize() const override;
 
 private:
