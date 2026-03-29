@@ -1,0 +1,4 @@
+# 忽略 build 文件夹
+build/
+*.log
+.cache
