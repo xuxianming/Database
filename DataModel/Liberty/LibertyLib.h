@@ -8,6 +8,8 @@ class LibertyLib : public LibertyObject {
 public:
     LibertyLib();
     ~LibertyLib() override;
+    size_t GetSize() const override;
+
 private:
     uint32_t m_libcells_id;
     uint32_t m_file_name_id;

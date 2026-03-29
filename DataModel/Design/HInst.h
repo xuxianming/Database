@@ -5,15 +5,12 @@
 
 namespace db {
 class HInst : public InstBase {
-
-
 public:
-    HInst() = default;
+    HInst()           = default;
     ~HInst() override = default;
     size_t GetSize() const override;
 
 private:
-
     uint32_t m_insts_id;
     uint32_t m_hinsts_id;
 };

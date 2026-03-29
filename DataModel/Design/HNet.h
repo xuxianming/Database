@@ -4,8 +4,6 @@
 #include "DataModel/Design/NetBase.h"
 namespace db {
 class HNet : public NetBase {
-
-
 public:
     HNet()           = default;
     ~HNet() override = default;

@@ -1,10 +1,5 @@
 #include "DataModel/Liberty/LibCell.h"
 
 namespace db {
-LibCell::LibCell() {
-    // TODO(xuxianming): 
-}
-LibCell::~LibCell() {
-    // TODO(xuxianming): 
-}
+size_t LibCell::GetSize() const { return sizeof(LibCell); }
 }  // namespace db

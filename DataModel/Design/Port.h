@@ -4,8 +4,8 @@
 namespace db {
 class Port : public DesignObject {
 public:
-    Port();
-    ~Port() override;
+    Port()           = default;
+    ~Port() override = default;
     size_t GetSize() const override;
 
 private:

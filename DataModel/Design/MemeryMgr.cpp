@@ -31,123 +31,142 @@ std::string         db_path = ".";
 uint64_t DesignMemoryMgr::current_design_id = 0;
 
 Design* DesignMemoryMgr::CreateDesign() {
-    Design* design = design_table.Make();
-    design->m_obj_id =
-        EncodeId<Design>(design_table.ObjectId(design), DMObjectType::DESIGN);
+    auto  id     = design_table.GetNextObjId();
+    auto* design = design_table.Make();
+    design->SetObjectId(id);
     return design;
 }
-
 Inst* DesignMemoryMgr::CreateInst() {
-    Inst* inst = inst_table.Make();
-    inst->m_obj_id =
-        EncodeId<Inst>(inst_table.ObjectId(inst), DMObjectType::INST);
+    auto  id   = inst_table.GetNextObjId();
+    auto* inst = inst_table.Make();
+    inst->SetObjectId(id);
     return inst;
 }
 
 HInst* DesignMemoryMgr::CreateHInst() {
-    HInst* hinst = hinst_table.Make();
-    hinst->m_obj_id =
-        EncodeId<HInst>(hinst_table.ObjectId(hinst), DMObjectType::HINST);
+    auto  id    = hinst_table.GetNextObjId();
+    auto* hinst = hinst_table.Make();
+    hinst->SetObjectId(id);
     return hinst;
 }
 
 Net* DesignMemoryMgr::CreateNet() {
-    Net* net      = net_table.Make();
-    net->m_obj_id = EncodeId<Net>(net_table.ObjectId(net), DMObjectType::NET);
+    auto  id  = net_table.GetNextObjId();
+    auto* net = net_table.Make();
+    net->SetObjectId(id);
     return net;
 }
 
 HNet* DesignMemoryMgr::CreateHNet() {
-    HNet* hnet = hnet_table.Make();
-    hnet->m_obj_id =
-        EncodeId<HNet>(hnet_table.ObjectId(hnet), DMObjectType::HNET);
+    auto  id   = hnet_table.GetNextObjId();
+    auto* hnet = hnet_table.Make();
+    hnet->SetObjectId(id);
     return hnet;
 }
 
 Pin* DesignMemoryMgr::CreatePin() {
-    Pin* pin      = pin_table.Make();
-    pin->m_obj_id = EncodeId<Pin>(pin_table.ObjectId(pin), DMObjectType::PIN);
+    auto  id  = pin_table.GetNextObjId();
+    auto* pin = pin_table.Make();
+    pin->SetObjectId(id);
     return pin;
 }
 
 HPin* DesignMemoryMgr::CreateHPin() {
-    HPin* hpin = hpin_table.Make();
-    hpin->m_obj_id =
-        EncodeId<HPin>(hpin_table.ObjectId(hpin), DMObjectType::HPIN);
+    auto  id   = hpin_table.GetNextObjId();
+    auto* hpin = hpin_table.Make();
+    hpin->SetObjectId(id);
     return hpin;
 }
 
 Port* DesignMemoryMgr::CreatePort() {
-    Port* port = port_table.Make();
-    port->m_obj_id =
-        EncodeId<Port>(port_table.ObjectId(port), DMObjectType::PORT);
+    auto  id   = port_table.GetNextObjId();
+    auto* port = port_table.Make();
+    port->SetObjectId(id);
     return port;
 }
 
 BusPort* DesignMemoryMgr::CreateBusPort() {
-    BusPort* bus_port  = bus_port_table.Make();
-    bus_port->m_obj_id = EncodeId<BusPort>(bus_port_table.ObjectId(bus_port),
-                                           DMObjectType::BUS_PORT);
-    return bus_port;
+    auto  id      = bus_port_table.GetNextObjId();
+    auto* busport = bus_port_table.Make();
+    busport->SetObjectId(id);
+    return busport;
 }
 
 BusNet* DesignMemoryMgr::CreateBusNet() {
-    BusNet* bus_net   = bus_net_table.Make();
-    bus_net->m_obj_id = EncodeId<BusNet>(bus_net_table.ObjectId(bus_net),
-                                         DMObjectType::BUS_NET);
-    return bus_net;
+    auto  id     = bus_net_table.GetNextObjId();
+    auto* busnet = bus_net_table.Make();
+    busnet->SetObjectId(id);
+    return busnet;
 }
 
-Design* DesignMemoryMgr::GetDesign(uint64_t id) {
-    uint64_t real_id = DecodeId<Design>(id);
+Design* DesignMemoryMgr::GetDesign(uint64_t full_id) {
+    uint64_t real_id = DecodeId<Design>(full_id);
     return design_table.Pointer(real_id);
 }
 
-Inst* DesignMemoryMgr::GetInst(uint64_t id) {
-    uint64_t real_id = DecodeId<Inst>(id);
+Inst* DesignMemoryMgr::GetInst(uint64_t full_id) {
+    uint64_t real_id = DecodeId<Inst>(full_id);
     return inst_table.Pointer(real_id);
 }
 
-HInst* DesignMemoryMgr::GetHInst(uint64_t id) {
-    uint64_t real_id = DecodeId<HInst>(id);
+HInst* DesignMemoryMgr::GetHInst(uint64_t full_id) {
+    uint64_t real_id = DecodeId<HInst>(full_id);
     return hinst_table.Pointer(real_id);
 }
 
-Net* DesignMemoryMgr::GetNet(uint64_t id) {
-    uint64_t real_id = DecodeId<Net>(id);
+Net* DesignMemoryMgr::GetNet(uint64_t full_id) {
+    uint64_t real_id = DecodeId<Net>(full_id);
     return net_table.Pointer(real_id);
 }
 
-HNet* DesignMemoryMgr::GetHNet(uint64_t id) {
-    uint64_t real_id = DecodeId<HNet>(id);
+HNet* DesignMemoryMgr::GetHNet(uint64_t full_id) {
+    uint64_t real_id = DecodeId<HNet>(full_id);
     return hnet_table.Pointer(real_id);
 }
 
-Pin* DesignMemoryMgr::GetPin(uint64_t id) {
-    uint64_t real_id = DecodeId<Pin>(id);
+Pin* DesignMemoryMgr::GetPin(uint64_t full_id) {
+    uint64_t real_id = DecodeId<Pin>(full_id);
     return pin_table.Pointer(real_id);
 }
 
-HPin* DesignMemoryMgr::GetHPin(uint64_t id) {
-    uint64_t real_id = DecodeId<HPin>(id);
+HPin* DesignMemoryMgr::GetHPin(uint64_t full_id) {
+    uint64_t real_id = DecodeId<HPin>(full_id);
     return hpin_table.Pointer(real_id);
 }
 
-Port* DesignMemoryMgr::GetPort(uint64_t id) {
-    uint64_t real_id = DecodeId<Port>(id);
+Port* DesignMemoryMgr::GetPort(uint64_t full_id) {
+    uint64_t real_id = DecodeId<Port>(full_id);
     return port_table.Pointer(real_id);
 }
 
-BusPort* DesignMemoryMgr::GetBusPort(uint64_t id) {
-    uint64_t real_id = DecodeId<BusPort>(id);
+BusPort* DesignMemoryMgr::GetBusPort(uint64_t full_id) {
+    uint64_t real_id = DecodeId<BusPort>(full_id);
     return bus_port_table.Pointer(real_id);
 }
 
-BusNet* DesignMemoryMgr::GetBusNet(uint64_t id) {
-    uint64_t real_id = DecodeId<BusNet>(id);
+BusNet* DesignMemoryMgr::GetBusNet(uint64_t full_id) {
+    uint64_t real_id = DecodeId<BusNet>(full_id);
     return bus_net_table.Pointer(real_id);
 }
 
+Design* DesignMemoryMgr::GetDesign(uint32_t id) {
+    return design_table.Pointer(id);
+}
+Inst*  DesignMemoryMgr::GetInst(uint32_t id) { return inst_table.Pointer(id); }
+HInst* DesignMemoryMgr::GetHInst(uint32_t id) {
+    return hinst_table.Pointer(id);
+}
+Net*  DesignMemoryMgr::GetNet(uint32_t id) { return net_table.Pointer(id); }
+HNet* DesignMemoryMgr::GetHNet(uint32_t id) { return hnet_table.Pointer(id); }
+Pin*  DesignMemoryMgr::GetPin(uint32_t id) { return pin_table.Pointer(id); }
+HPin* DesignMemoryMgr::GetHPin(uint32_t id) { return hpin_table.Pointer(id); }
+Port* DesignMemoryMgr::GetPort(uint32_t id) { return port_table.Pointer(id); }
+BusPort* DesignMemoryMgr::GetBusPort(uint32_t id) {
+    return bus_port_table.Pointer(id);
+}
+BusNet* DesignMemoryMgr::GetBusNet(uint32_t id) {
+    return bus_net_table.Pointer(id);
+}
 void DesignMemoryMgr::DestroyDesign(Design* obj) { design_table.Destroy(obj); }
 
 void DesignMemoryMgr::DestroyInst(Inst* obj) { inst_table.Destroy(obj); }
@@ -163,10 +182,10 @@ void DesignMemoryMgr::DestroyBusPort(BusPort* obj) {
 
 void DesignMemoryMgr::DestroyBusNet(BusNet* obj) { bus_net_table.Destroy(obj); }
 
-void DesignMemoryMgr::SetCurrentDesign(uint64_t designId) {
+void DesignMemoryMgr::SetCurrentDesign(uint32_t designId) {
     Design* design = GetDesign(designId);
     if (design == nullptr) {
-        DB_LOG(ERROR) << "invdid  design id " << designId << '\n';
+        DB_LOG(ERROR) << "invdid  design full_id " << designId << '\n';
         return;
     }
     current_design_id = designId;

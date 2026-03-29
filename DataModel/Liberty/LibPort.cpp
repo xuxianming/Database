@@ -1,13 +1,6 @@
 #include "DataModel/Liberty/LibPort.h"
 
-
 namespace db {
-LibPort::LibPort() {
-    // TODO(xuxianming): 
-}
-LibPort::~LibPort() {
-    // TODO(xuxianming): 
-}
+size_t LibPort::GetSize() const { return sizeof(LibPort); }
 
-
-}
+}  // namespace db

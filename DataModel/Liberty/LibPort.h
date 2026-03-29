@@ -8,9 +8,9 @@ namespace db {
 
 class LibPort : public LibertyObject {
 public:
-    LibPort();
-    ~LibPort() override;
-
+    LibPort()           = default;
+    ~LibPort() override = default;
+    size_t GetSize() const override;
     enum BoolAttrName {
         kIsClock = 0,
         kIsClockGateClockPin,

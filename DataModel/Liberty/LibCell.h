@@ -5,8 +5,9 @@
 namespace db {
 class LibCell : public LibertyObject {
 public:
-    LibCell();
-    ~LibCell() override;
+    LibCell() = default;
+    ~LibCell() override = default;
+    size_t GetSize() const override;
 
 private:
     uint32_t m_owner_lib;

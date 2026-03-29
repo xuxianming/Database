@@ -3,11 +3,13 @@
 #include <cstdint>
 #include <string>
 #include "DataModel/Design/MemeryMgr.h"
+#include "DataModel/Liberty/MemeryMgr.h"
 #include "DataModel/Type.h"
 
 namespace db {
 class Object {
     friend DesignMemoryMgr;
+    friend LibMemeryMgr;
 
 public:
     Object()          = default;
@@ -16,15 +18,17 @@ public:
     DMObjectType        GetType() const;
     virtual std::string PathName();
     virtual size_t      GetSize() const;
-    void                SetType(DMObjectType type);
-    uint64_t            GetRealId() const;
-    void                SetRealId(uint64_t id);
-    uint32_t            GetObjectIdx() const;
-    void                SetObjectIdx(uint32_t idx);
+    uint64_t            GetObjectFullId() const;
+    uint32_t            GetObjectId() const;
 
 private:
-    uint64_t m_obj_id{};
-    uint32_t m_name_id{};
+    void SetType(DMObjectType type);
+    void SetObjectId(uint32_t idx);
+
+private:
+    DMObjectType m_type;
+    uint32_t     m_obj_id{};
+    uint32_t     m_name_id{};
 };
 }  // namespace db
 #endif

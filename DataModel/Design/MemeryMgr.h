@@ -28,16 +28,27 @@ public:
     BusPort* CreateBusPort();
     BusNet*  CreateBusNet();
 
-    Design*  GetDesign(uint64_t id);
-    Inst*    GetInst(uint64_t id);
-    HInst*   GetHInst(uint64_t id);
-    Net*     GetNet(uint64_t id);
-    HNet*    GetHNet(uint64_t id);
-    Pin*     GetPin(uint64_t id);
-    HPin*    GetHPin(uint64_t id);
-    Port*    GetPort(uint64_t id);
-    BusPort* GetBusPort(uint64_t id);
-    BusNet*  GetBusNet(uint64_t id);
+    Design*  GetDesign(uint64_t full_id);
+    Inst*    GetInst(uint64_t full_id);
+    HInst*   GetHInst(uint64_t full_id);
+    Net*     GetNet(uint64_t full_id);
+    HNet*    GetHNet(uint64_t full_id);
+    Pin*     GetPin(uint64_t full_id);
+    HPin*    GetHPin(uint64_t full_id);
+    Port*    GetPort(uint64_t full_id);
+    BusPort* GetBusPort(uint64_t full_id);
+    BusNet*  GetBusNet(uint64_t full_id);
+
+    Design*  GetDesign(uint32_t id);
+    Inst*    GetInst(uint32_t id);
+    HInst*   GetHInst(uint32_t id);
+    Net*     GetNet(uint32_t id);
+    HNet*    GetHNet(uint32_t id);
+    Pin*     GetPin(uint32_t id);
+    HPin*    GetHPin(uint32_t id);
+    Port*    GetPort(uint32_t id);
+    BusPort* GetBusPort(uint32_t id);
+    BusNet*  GetBusNet(uint32_t id);
 
     void DestroyDesign(Design* obj);
     void DestroyInst(Inst* obj);
@@ -50,7 +61,7 @@ public:
     void DestroyBusPort(BusPort* obj);
     void DestroyBusNet(BusNet* obj);
 
-    void    SetCurrentDesign(uint64_t designId);
+    void    SetCurrentDesign(uint32_t designId);
     Design* GetCurrentDesign();
 
     bool SaveAll();

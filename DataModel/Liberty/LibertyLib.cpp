@@ -2,10 +2,5 @@
 
 
 namespace db {
-LibertyLib::LibertyLib() {
-    // TODO(xuxianming): 
-}
-LibertyLib::~LibertyLib() {
-    // TODO(xuxianming): 
-}
+    size_t LibertyLib::GetSize() const { return sizeof(LibertyLib); }
 }
