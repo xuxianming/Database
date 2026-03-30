@@ -10,8 +10,10 @@ public:
 
 private:
     uint32_t m_nets_id{};
+    uint32_t m_hnets_id{};
     uint32_t m_ports_id{};
     uint32_t m_insts_id{};
+    uint32_t m_hinsts_id{};
     uint32_t m_bus_nets_id{};
     uint32_t m_bus_ports_id{};
 };

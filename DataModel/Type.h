@@ -16,7 +16,6 @@ namespace db {
 // clang-format off
 
 #define BLOCK(X) \
-    X(OBJECT) \
     X(DESIGN) \
     X(INST) \
     X(NET) \
@@ -27,10 +26,12 @@ namespace db {
     X(HNET) \
     X(HINST) \
     X(HPIN)  \
+    X(DESIGNOBJ_COUNT) \
     X(LIBERTYLIB) \
     X(LIBCELL) \
     X(LIBPORT) \
-    X(UNNOW)
+    X(LIBOBJECT_COUNT) \
+    X(UNKNOWN_OBJ)
 
 DBENUM(DMObjectType, uint8_t, BLOCK)
 #undef BLOCK
