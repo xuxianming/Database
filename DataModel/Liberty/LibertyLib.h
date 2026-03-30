@@ -6,8 +6,8 @@
 namespace db {
 class LibertyLib : public LibertyObject {
 public:
-    LibertyLib();
-    ~LibertyLib() override;
+    LibertyLib() = default;
+    ~LibertyLib() override = default;
     size_t GetSize() const override;
 
 private:

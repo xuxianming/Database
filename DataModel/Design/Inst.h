@@ -5,7 +5,7 @@
 namespace db {
 class Inst : public InstBase {
 public:
-    Inst();
+    Inst()  =default;
     ~Inst() override = default;
     size_t GetSize() const override;
 
