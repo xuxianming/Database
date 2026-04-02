@@ -8,9 +8,9 @@ public:
     ~PinBase() override = default;
 
 private:
-    uint32_t m_port_id;
-    uint32_t m_net_id;
-    uint32_t m_owner_id;
+    ObjectId     m_port_id;
+    ObjectId     m_net_id;
+    FullObjectId m_owner_id;  // Inst Id or Hinst Id
 };
 
 }  // namespace db

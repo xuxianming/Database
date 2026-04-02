@@ -115,9 +115,9 @@ public:
     };
 
 private:
-    uint32_t m_owner_cell;
-    uint32_t m_caps;
-    uint8_t  m_dir;
+    ObjectId           m_owner_cell;
+    LibPortCapsArrayId m_caps;
+    Direction          m_dir;
 };
 
 };  // namespace db

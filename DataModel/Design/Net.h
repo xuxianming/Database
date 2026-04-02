@@ -11,7 +11,7 @@ public:
     size_t GetSize() const override;
 
 private:
-    uint32_t m_bit_id{};
+    BusBitId m_bit_id{};
 };
 
 }  // namespace db

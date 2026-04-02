@@ -4,6 +4,27 @@
 #include <string>
 namespace db {
 
+using BusBitId                     = uint16_t;
+using BusBitRangeType              = int16_t;
+using ObjectEnumType               = uint8_t;
+constexpr uint64_t kInvalidId      = 0;
+constexpr uint8_t  ObjectIndexBits = 7;
+#ifdef _UINT_64_
+using ObjectId                     = uint64_t;
+using FullObjectId                 = uint64_t;
+using ObjectNameArrayId      = uint64_t;
+using constexpr uint8_t TypeOffset = 56;
+constexpr uint8_t       IdWidth    = 56;
+constexpr uint64_t      IdMask     = 0x00FFFFFFFFFFFFFF;
+#else
+using ObjectId                = uint32_t;
+using FullObjectId            = uint64_t;
+using ObjectNameArrayId = uint32_t;
+constexpr uint8_t  TypeOffset = 56;
+constexpr uint8_t  IdWidth    = 32;
+constexpr uint32_t IdMask     = 0xFFFFFFFF;
+#endif
+
 #define ENUM_ELEMENT(x) x,
 #define ENUM_STRING(x) #x,
 #define DBENUM(name, base, elements)                            \
@@ -33,7 +54,7 @@ namespace db {
     X(LIBOBJECT_COUNT) \
     X(UNKNOWN_OBJ)
 
-DBENUM(DMObjectType, uint8_t, BLOCK)
+DBENUM(DMObjectType, ObjectEnumType, BLOCK)
 #undef BLOCK
 
 #define BLOCK(x) \
@@ -155,7 +176,6 @@ DBENUM(TreeEnumType, uint8_t, BLOCK)
   x(UNKNOWN_FFPINTYPE)
 DBENUM(FfPinType, uint8_t, BLOCK)
 #undef BLOCK
-
 
 // clang-format on
 }  // namespace db

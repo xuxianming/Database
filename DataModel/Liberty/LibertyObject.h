@@ -2,6 +2,7 @@
 #define DATAMODEL_LIBERTY_LIBERTYOBJECT_H_
 
 #include "DataModel/Object.h"
+#include "DataModel/Liberty/Type.h"
 namespace db {
 class LibertyObject : public Object {};
 }  // namespace db

@@ -11,8 +11,8 @@ public:
     size_t GetSize() const override;
 
 private:
-    uint32_t m_insts_id;
-    uint32_t m_hinsts_id;
+    InstArrayId m_insts_id;
+    HInstArrayId m_hinsts_id;
 };
 
 }  // namespace db

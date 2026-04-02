@@ -14,18 +14,18 @@ public:
     LibCell*    CreateLibCell();
     LibPort*    CreateLibPort();
 
-    LibertyLib* GetLibertyLib(uint64_t full_id);
-    LibCell*    GetLibCell(uint64_t full_id);
-    LibPort*    GetLibPort(uint64_t full_id);
-    LibertyLib* GetLibertyLib(uint32_t id);
-    LibCell*    GetLibCell(uint32_t id);
-    LibPort*    GetLibPort(uint32_t id);
+    LibertyLib* GetLibertyLib(FullObjectId full_id);
+    LibCell*    GetLibCell(FullObjectId full_id);
+    LibPort*    GetLibPort(FullObjectId full_id);
+    LibertyLib* GetLibertyLib(ObjectId id);
+    LibCell*    GetLibCell(ObjectId id);
+    LibPort*    GetLibPort(ObjectId id);
 
     void DestroyLibertyLib(LibertyLib* obj);
     void DestroyLibCell(LibCell* obj);
     void DestroyLibPort(LibPort* obj);
 
-    void        SetDefaultLibertyLib(uint64_t libertyId);
+    void        SetDefaultLibertyLib(ObjectId libertyId);
     LibertyLib* GetDefaultLibertyLib();
 
     bool SaveAll();
@@ -35,16 +35,14 @@ public:
     void Clear();
 
 private:
-    uint64_t EncodeId(uint32_t realId, DMObjectType type) {
-        return (static_cast<uint64_t>(type) << 56) |
-               (realId & 0x00000000FFFFFFFF);
+    FullObjectId EncodeId(ObjectId realId, DMObjectType type) {
+        return (static_cast<FullObjectId>(type) << TypeOffset) |
+               (realId & IdMask);
     }
 
-    inline uint32_t DecodeId(uint64_t fullId) {
-        return fullId & 0x00000000FFFFFFFF;
-    }
+    inline ObjectId DecodeId(FullObjectId fullId) { return fullId & IdMask; }
 
-    static uint64_t default_liberty_id;
+    static ObjectId default_liberty_id;
 };
 }  // namespace db
 #endif

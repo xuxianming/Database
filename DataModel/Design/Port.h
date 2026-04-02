@@ -9,8 +9,8 @@ public:
     size_t GetSize() const override;
 
 private:
-    uint32_t m_design_id{};
-    uint32_t m_bit_id{};
+    ObjectId m_design_id{};
+    BusBitId m_bit_id{};
 };
 
 }  // namespace db

@@ -10,7 +10,7 @@ public:
     size_t GetSize() const override;
 
 private:
-    uint32_t m_lower_net_id;
+    ObjectId m_lower_net_id;
 };
 
 }  // namespace db

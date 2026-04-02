@@ -3,13 +3,17 @@
 #include "DataModel/Liberty/LibCell.h"
 #include "DataModel/Liberty/LibPort.h"
 #include "DataModel/Liberty/LibertyLib.h"
+#include "MemeryMgr.h"
 
 namespace db {
-ObjectTable<LibertyLib> lib_table(
+ObjectTable<LibertyLib, ObjectId, ObjectIndexBits> lib_table(
     static_cast<uint8_t>(DMObjectType::LIBERTYLIB));
-ObjectTable<LibCell> libcell_table(static_cast<uint8_t>(DMObjectType::LIBCELL));
-ObjectTable<LibPort> libport_table(static_cast<uint8_t>(DMObjectType::LIBPORT));
+ObjectTable<LibCell, ObjectId, ObjectIndexBits> libcell_table(
+    static_cast<uint8_t>(DMObjectType::LIBCELL));
+ObjectTable<LibPort, ObjectId, ObjectIndexBits> libport_table(
+    static_cast<uint8_t>(DMObjectType::LIBPORT));
 
+ObjectId    LibMemeryMgr::default_liberty_id = kInvalidId;
 LibertyLib* LibMemeryMgr::CreatLibertyLib() {
     auto  id  = lib_table.GetNextObjId();
     auto* lib = lib_table.Make();
@@ -30,26 +34,26 @@ LibPort* LibMemeryMgr::CreateLibPort() {
     port->SetObjectId(id);
     return port;
 }
-LibertyLib* LibMemeryMgr::GetLibertyLib(uint64_t full_id) {
-    uint64_t real_id = DecodeId(full_id);
+LibertyLib* LibMemeryMgr::GetLibertyLib(FullObjectId full_id) {
+    FullObjectId real_id = DecodeId(full_id);
     return lib_table.Pointer(real_id);
 }
-LibCell* LibMemeryMgr::GetLibCell(uint64_t full_id) {
-    uint64_t real_id = DecodeId(full_id);
+LibCell* LibMemeryMgr::GetLibCell(FullObjectId full_id) {
+    FullObjectId real_id = DecodeId(full_id);
     return libcell_table.Pointer(real_id);
 }
-LibPort* LibMemeryMgr::GetLibPort(uint64_t full_id) {
-    uint64_t real_id = DecodeId(full_id);
+LibPort* LibMemeryMgr::GetLibPort(FullObjectId full_id) {
+    FullObjectId real_id = DecodeId(full_id);
     return libport_table.Pointer(real_id);
 }
 
-LibertyLib* LibMemeryMgr::GetLibertyLib(uint32_t id) {
+LibertyLib* LibMemeryMgr::GetLibertyLib(ObjectId id) {
     return lib_table.Pointer(id);
 }
-LibCell* LibMemeryMgr::GetLibCell(uint32_t id) {
+LibCell* LibMemeryMgr::GetLibCell(ObjectId id) {
     return libcell_table.Pointer(id);
 }
-LibPort* LibMemeryMgr::GetLibPort(uint32_t id) {
+LibPort* LibMemeryMgr::GetLibPort(ObjectId id) {
     return libport_table.Pointer(id);
 }
 
@@ -58,5 +62,21 @@ void LibMemeryMgr::DestroyLibertyLib(LibertyLib* obj) {
 }
 void LibMemeryMgr::DestroyLibCell(LibCell* obj) { libcell_table.Destroy(obj); }
 void LibMemeryMgr::DestroyLibPort(LibPort* obj) { libport_table.Destroy(obj); }
+
+void LibMemeryMgr::SetDefaultLibertyLib(ObjectId libertyId) {
+    default_liberty_id = libertyId;
+}
+
+LibertyLib* LibMemeryMgr::GetDefaultLibertyLib() {
+    return lib_table.Pointer(default_liberty_id);
+}
+
+bool LibMemeryMgr::SaveAll() { return false; }
+
+bool LibMemeryMgr::LoadAll(const std::string& db_pathdir) { return false; }
+
+void LibMemeryMgr::PrintStats() const {}
+
+void LibMemeryMgr::Clear() {}
 
 }  // namespace db

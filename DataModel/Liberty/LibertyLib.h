@@ -6,13 +6,13 @@
 namespace db {
 class LibertyLib : public LibertyObject {
 public:
-    LibertyLib() = default;
+    LibertyLib()           = default;
     ~LibertyLib() override = default;
     size_t GetSize() const override;
 
 private:
-    uint32_t m_libcells_id;
-    uint32_t m_file_name_id;
+    LibCellArrayId m_libcells_id;
+    FileArrayId    m_file_name_id;
 };
 }  // namespace db
 

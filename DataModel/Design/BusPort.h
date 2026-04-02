@@ -10,10 +10,10 @@ public:
     size_t GetSize() const override;
 
 private:
-    uint32_t m_design_id{};
-    uint32_t m_members_id{};
-    uint32_t m_from_index{};
-    uint32_t m_to_index{};
+    ObjectId        m_design_id;
+    ObjectId        m_members_id;
+    BusBitRangeType m_from_index;
+    BusBitRangeType m_to_index;
 };
 
 }  // namespace db

@@ -9,10 +9,10 @@ public:
     InstBase()           = default;
     ~InstBase() override = default;
 
-private:
-    uint32_t m_owner_id;  // Design or HInst
-    uint32_t m_ref_id;    // Design or LibCell
-    uint32_t m_pins_id;
+protected:
+    FullObjectId m_owner_id;  // Design or HInst
+    FullObjectId m_ref_id;    // Design or LibCell
+    PinArrayId   m_pins_id;
 };
 
 }  // namespace db

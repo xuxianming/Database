@@ -10,8 +10,8 @@ public:
     size_t GetSize() const override;
 
 private:
-    uint32_t m_bit_id;
-    uint32_t m_hpins_id;
+    BusBitId m_bit_id;
+    HPinArrayId m_hpins_id;
 };
 
 }  // namespace db

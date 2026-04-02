@@ -5,13 +5,13 @@
 namespace db {
 class LibCell : public LibertyObject {
 public:
-    LibCell() = default;
+    LibCell()           = default;
     ~LibCell() override = default;
     size_t GetSize() const override;
 
 private:
-    uint32_t m_owner_lib;
-    uint32_t m_libports_id;
+    ObjectId       m_owner_lib;
+    LibPortArrayId m_libports_id;
 };
 }  // namespace db
 

@@ -9,9 +9,9 @@ public:
     ~NetBase() override = default;
     size_t GetSize() const override;
 
-private:
-    uint32_t m_owner_id{};
-    uint32_t m_pins_id{};
+protected:
+    FullObjectId m_owner_id;  // Design or HInst
+    PinArrayId   m_pins_id{};
 };
 
 }  // namespace db
