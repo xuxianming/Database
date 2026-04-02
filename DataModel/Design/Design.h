@@ -11,7 +11,7 @@ public:
     Design()           = default;
     ~Design() override = default;
     size_t GetSize() const override;
-
+    uint32_t GetMaxFanout() const;
 private:
     inline void SetStringMgr(StringMgr* mgr) { m_string_mgr = mgr; }
 

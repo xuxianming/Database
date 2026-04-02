@@ -386,6 +386,10 @@ public:
         static StringMgrMaintainer instance;
         return instance;
     }
+    /**
+     * Get the StringMgr for the given design_id. If it does not exist, create a
+     * new one. Ensure legality of design_id before calling this function. 
+     */
     StringMgr* GetOrCreateStringMgr(ObjectId design_id);
     StringMgr* CreateStringMgr(ObjectId design_id);
     StringMgr* GetStringMgr(ObjectId design_id) const;
