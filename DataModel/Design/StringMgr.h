@@ -5,464 +5,455 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-#include <fstream>
-#include <iostream>
 #include <map>
+#include <memory>
 #include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
 #include <vector>
-#include "BasePlatfrom/SortArray.h"
-#include "DataModel/Type.h"
+#include "Utils/Unils.h"
 
 namespace db {
 
-template <typename IdType, int LENGTH_SIZE_BITS = 16, int BLOCK_INDEX_BITS = 8>
-class StringTable {
-    static_assert(std::is_integral<IdType>::value, "IdType must be integral");
-    static_assert(LENGTH_SIZE_BITS > 0 && LENGTH_SIZE_BITS < 32,
-                  "LENGTH_SIZE_BITS must be between 1 and 31");
-    static_assert(
-        BLOCK_INDEX_BITS > 0 && BLOCK_INDEX_BITS < sizeof(IdType) * 8,
-        "BLOCK_INDEX_BITS must be between 1 and (sizeof(IdType)*8 - 1)");
-
+template <typename IdType, typename ValueType>
+class TableBase {
 public:
-    static constexpr int    LENGTH_SIZE = LENGTH_SIZE_BITS;
-    static constexpr IdType MAX_STRING_LENGTH =
-        (static_cast<IdType>(1) << LENGTH_SIZE) - 1;
-    static constexpr int BLOCK_INDEX_WIDTH = BLOCK_INDEX_BITS;
-    static constexpr int OBJECT_INDEX_BITS =
-        sizeof(IdType) * 8 - BLOCK_INDEX_BITS;
-    static constexpr IdType BLOCK_INDEX_SHIFT = OBJECT_INDEX_BITS;
-    static constexpr IdType BLOCK_INDEX_MASK =
-        (static_cast<IdType>(1) << BLOCK_INDEX_BITS) - 1;
-    static constexpr IdType BLOCK_OFFSET_MASK =
-        (static_cast<IdType>(1) << OBJECT_INDEX_BITS) - 1;
-    static constexpr IdType BLOCK_SIZE = static_cast<IdType>(1)
-                                         << OBJECT_INDEX_BITS;
-    static constexpr IdType MAX_BLOCK_COUNT =
-        (static_cast<IdType>(1) << BLOCK_INDEX_BITS) - 1;
-    static constexpr IdType MAX_OBJECT_COUNT = MAX_BLOCK_COUNT * BLOCK_SIZE;
+    virtual ~TableBase()                      = default;
+    virtual IdType    Add(const ValueType& v) = 0;
+    virtual ValueType Get(IdType id) const    = 0;
+    virtual void      Destroy(IdType id)      = 0;
+    virtual void      Clear()                 = 0;
+};
 
-    StringTable();
-    ~StringTable();
+template <typename IdType>
+class StringTableBase {
+public:
+    virtual ~StringTableBase()                                 = default;
+    virtual IdType           AddString(const std::string& str) = 0;
+    virtual std::string_view GetString(IdType id) const        = 0;
+    virtual void             DestroyString(IdType id)          = 0;
+    virtual void             Clear()                           = 0;
+};
 
-    IdType           AddString(const std::string& str);
-    std::string_view GetString(IdType id) const;
-    void             Clear();
-    void             DestroyString(IdType id);
-    void             Save(std::ofstream& ofs) const;
-    void             Load(std::ifstream& ifs);
+// ==================== StringMgr 主类 ====================
+template <typename IdType, uint8_t MAX_FIX_LENGTH = 127,
+          IdType MinElementCount = 128, uint16_t BlockSizeMultiple = 1>
+class StringMgr {
+    static_assert(std::is_integral<IdType>::value, "IdType must be integral");
+    static_assert(MAX_FIX_LENGTH > 0 && MAX_FIX_LENGTH <= 127,
+                  "MAX_FIX_LENGTH must be between 1 and 127");
+    static_assert(MinElementCount > 0,
+                  "MinElementCount must be greater than 0");
+    static_assert(BlockSizeMultiple > 0,
+                  "BlockSizeMultiple must be greater than 0");
 
-    static constexpr IdType GetBlockSize() { return BLOCK_SIZE; }
-    static constexpr int    GetObjectIndexBits() { return OBJECT_INDEX_BITS; }
-    static constexpr int    GetBlockIndexBits() { return BLOCK_INDEX_BITS; }
-    static constexpr IdType GetMaxBlockCount() { return MAX_BLOCK_COUNT; }
-    static constexpr IdType GetMaxObjectCount() { return MAX_OBJECT_COUNT; }
+    // ---------- 编译期常量 ----------
+    static constexpr size_t LCM_VALUE      = LCMRange<MAX_FIX_LENGTH>::value;
+    static constexpr size_t MAX_INLINE_LEN = sizeof(IdType);
+    template <size_t Len>
+    static constexpr size_t FindBestK() {
+        constexpr size_t target  = MinElementCount;
+        size_t           larger  = NextPerfectSize(target);
+        size_t           smaller = (larger + 1) / 2 - 1;
+        if (smaller == 0) smaller = 1;
 
-private:
-    bool     FindMostSuitableIdInFreeList(const std::string& str, IdType& id);
-    uint16_t GetLength(IdType id) const;
+        auto calc_k = [](size_t elements, size_t len) -> size_t {
+            return (elements * len + LCM_VALUE - 1) / LCM_VALUE;
+        };
 
-    static constexpr IdType MakeId(IdType block_idx, IdType offset) {
-        return (static_cast<IdType>(block_idx) << OBJECT_INDEX_BITS) | offset;
+        size_t k_large = calc_k(larger, Len);
+        size_t k_small = calc_k(smaller, Len);
+
+        size_t actual_large = LCM_VALUE * k_large / Len;
+        size_t actual_small = LCM_VALUE * k_small / Len;
+
+        if (IsPerfectSize(actual_large)) return k_large;
+        if (IsPerfectSize(actual_small)) return k_small;
+
+        return (std::abs((int64_t)actual_large - (int64_t)larger) <=
+                std::abs((int64_t)actual_small - (int64_t)smaller))
+                   ? k_large
+                   : k_small;
     }
 
-    static constexpr IdType GetBlockIndex(IdType id) {
-        return static_cast<IdType>(id >> OBJECT_INDEX_BITS);
+    template <size_t... Is>
+    static constexpr size_t ComputeOptimalK(std::index_sequence<Is...>) {
+        return std::max({FindBestK<Is + 1>()...});
     }
 
-    static constexpr IdType GetOffset(IdType id) {
-        return id & BLOCK_OFFSET_MASK;
-    }
+    static constexpr size_t OPTIMAL_K =
+        ComputeOptimalK(std::make_index_sequence<MAX_FIX_LENGTH>());
 
-    struct SortIdByLength {
-        SortIdByLength() = default;
-        SortIdByLength(StringTable* this_table) : table(this_table) {}
-        bool operator()(IdType id1, IdType id2) const {
-            return table->GetLength(id1) < table->GetLength(id2);
+    static constexpr size_t BASE_BLOCK_BYTES = LCM_VALUE * OPTIMAL_K;
+    static constexpr size_t BLOCK_BYTES = BASE_BLOCK_BYTES * BlockSizeMultiple;
+
+    static constexpr size_t TOTAL_BITS     = sizeof(IdType) * 8;
+    static constexpr size_t FIXED_LEN_BITS = 7;
+    static constexpr size_t FLAG_BIT       = 1;
+
+    // ---------- 定长表参数（每个长度独立） ----------
+    template <size_t Len>
+    struct FixedTableParams {
+        static constexpr size_t elements_per_block = BLOCK_BYTES / Len;
+        static constexpr size_t offset_bits        = []() {
+            size_t bits = 0;
+            size_t temp = elements_per_block;
+            while (temp > 0) {
+                ++bits;
+                temp >>= 1;
+            }
+            return bits;
+        }();
+        static constexpr size_t available_bits =
+            TOTAL_BITS - FLAG_BIT - FIXED_LEN_BITS;
+        static constexpr size_t block_bits = available_bits - offset_bits;
+        static_assert(block_bits > 0, "IdType too small to encode block index");
+
+        static constexpr IdType offset_mask =
+            (static_cast<IdType>(1) << offset_bits) - 1;
+        static constexpr IdType block_mask =
+            (static_cast<IdType>(1) << block_bits) - 1;
+
+        static constexpr IdType Encode(size_t block_idx, size_t offset) {
+            IdType id = 0;
+            id |= (static_cast<IdType>(Len) << 1);
+            id |= (static_cast<IdType>(block_idx)
+                   << (offset_bits + 1 + FIXED_LEN_BITS));
+            id |= (static_cast<IdType>(offset) << (1 + FIXED_LEN_BITS));
+            return id;
+        }
+
+        static constexpr std::pair<size_t, size_t> Decode(IdType id) {
+            size_t offset = (id >> (1 + FIXED_LEN_BITS)) & offset_mask;
+            size_t block_idx =
+                (id >> (offset_bits + 1 + FIXED_LEN_BITS)) & block_mask;
+            return {block_idx, offset};
+        }
+    };
+
+    // ---------- 定长表实现 ----------
+    template <size_t Len>
+    class FixLengthStringTable : public StringTableBase<IdType> {
+    public:
+        static constexpr auto PARAMS = FixedTableParams<Len>();
+
+        FixLengthStringTable() {
+            m_blocks_.reserve(16);
+            m_free_list_.reserve(64);
+        }
+
+        ~FixLengthStringTable() override { Clear(); }
+
+        IdType AddString(const std::string& str) override {
+            assert(str.length() == Len);
+            // 1. 优先使用空闲槽位
+            if (!m_free_list_.empty()) {
+                auto [block_idx, offset] = m_free_list_.back();
+                m_free_list_.pop_back();
+                char* block_data = m_blocks_[block_idx];
+                std::memcpy(block_data + offset * Len, str.data(), Len);
+                return PARAMS.Encode(block_idx, offset);
+            }
+            if (m_blocks_.empty() ||
+                m_cur_count_ >= PARAMS.elements_per_block) {
+                m_cur_block_     = m_blocks_.size();
+                char* block_data = (char*)malloc(BLOCK_BYTES);
+                if (block_data == nullptr) {
+                    throw std::runtime_error("Failed to allocate block");
+                }
+                m_blocks_.emplace_back(block_data);
+                m_cur_count_ = 0;
+            }
+            char* block_data = m_blocks_[m_cur_block_];
+            std::memcpy(block_data + m_cur_count_ * Len, str.data(), Len);
+            auto id = PARAMS.Encode(m_cur_block_, m_cur_count_);
+            m_cur_count_ += 1;
+            return id;
+        }
+
+        std::string_view GetString(IdType id) const override {
+            auto [block_idx, offset] = PARAMS.Decode(id);
+            const char* block_data   = m_blocks_[block_idx];
+            return std::string_view(block_data + offset * Len, Len);
+        }
+
+        void DestroyString(IdType id) override {
+            auto [block_idx, offset] = PARAMS.Decode(id);
+            if (block_idx == m_cur_block_ && offset == m_cur_count_ - 1) {
+                // 直接回收当前块末尾的字符串，无需加入空闲列表
+                m_cur_count_ -= 1;
+                return;
+            }
+            m_free_list_.emplace_back(block_idx, offset);
+        }
+
+        void Clear() override {
+            for (auto& block : m_blocks_) {
+                free(block);
+            }
+            m_blocks_.clear();
+            m_free_list_.clear();
+            m_cur_block_ = 0;
+            m_cur_count_ = 0;
         }
 
     private:
-        StringTable* table = nullptr;
+        std::vector<char*>                     m_blocks_;
+        size_t                                 m_cur_block_ = 0;
+        size_t                                 m_cur_count_ = 0;
+        std::vector<std::pair<IdType, IdType>> m_free_list_;
     };
 
-private:
-    IdType                            remaining_size;
-    IdType                            current_offset;
-    std::vector<char*>                strings_;
-    SortArray<IdType, SortIdByLength> free_list;
-    char*                             current_block = nullptr;
-};
+    // ---------- 变长表实现（按长度精确匹配空闲） ----------
+    class DynamicStringTable : public StringTableBase<IdType> {
+    public:
+        static constexpr size_t OFFSET_BITS = 20;
+        static constexpr size_t BLOCK_BITS  = TOTAL_BITS - 1 - OFFSET_BITS;
+        static_assert(BLOCK_BITS > 0, "IdType too small for dynamic table");
 
-template <typename IdType, int LENGTH_SIZE_BITS, int BLOCK_INDEX_BITS>
-StringTable<IdType, LENGTH_SIZE_BITS, BLOCK_INDEX_BITS>::StringTable() {
-    remaining_size = BLOCK_SIZE;
-    current_offset = 0;
-    free_list.SetCompare(SortIdByLength(this));
-}
+        DynamicStringTable() { m_blocks_.reserve(16); }
 
-template <typename IdType, int LENGTH_SIZE_BITS, int BLOCK_INDEX_BITS>
-StringTable<IdType, LENGTH_SIZE_BITS, BLOCK_INDEX_BITS>::~StringTable() {
-    Clear();
-}
+        ~DynamicStringTable() override { Clear(); }
 
-template <typename IdType, int LENGTH_SIZE_BITS, int BLOCK_INDEX_BITS>
-IdType StringTable<IdType, LENGTH_SIZE_BITS, BLOCK_INDEX_BITS>::AddString(
-    const std::string& str) {
-    IdType id;
-    if (FindMostSuitableIdInFreeList(str, id)) {
-        return id;
-    }
+        IdType AddString(const std::string& str) override {
+            uint16_t len         = static_cast<uint16_t>(str.length());
+            size_t   total_bytes = len + 2;
 
-    size_t len = str.size();
-    if (len > MAX_STRING_LENGTH) {
-        throw std::length_error("String exceeds maximum length");
-    }
-
-    IdType need_size = len + LENGTH_SIZE;
-    if (current_offset + need_size > remaining_size) {
-        int leng = remaining_size - LENGTH_SIZE;
-        if (leng > 0) {
-            IdType block_index = strings_.size() - 1;
-            IdType free_id     = MakeId(block_index, current_offset);
-            *reinterpret_cast<uint16_t*>(current_block + current_offset) = leng;
-            free_list.Insert(free_id);
-        }
-        if (strings_.size() >= MAX_BLOCK_COUNT) {
-            throw std::runtime_error(
-                "StringTable has reached maximum block count: " +
-                std::to_string(MAX_BLOCK_COUNT));
-        }
-        char* new_block = (char*)malloc(BLOCK_SIZE);
-        if (!new_block) {
-            throw std::bad_alloc();
-        }
-        memset(new_block, 0, BLOCK_SIZE);
-        strings_.push_back(new_block);
-        current_block = new_block;
-        if (strings_.size() == 1) {
-            current_offset = 1;
-            remaining_size = BLOCK_SIZE - 1;
-        } else {
-            current_offset = 0;
-            remaining_size = BLOCK_SIZE;
-        }
-    }
-
-    IdType block_id = strings_.size() - 1;
-    id              = MakeId(block_id, current_offset);
-    *reinterpret_cast<uint16_t*>(current_block + current_offset) = len;
-    std::memcpy(current_block + current_offset + LENGTH_SIZE, str.data(), len);
-    current_offset += need_size;
-    remaining_size -= need_size;
-    return id;
-}
-
-template <typename IdType, int LENGTH_SIZE_BITS, int BLOCK_INDEX_BITS>
-std::string_view StringTable<IdType, LENGTH_SIZE_BITS,
-                             BLOCK_INDEX_BITS>::GetString(IdType id) const {
-    IdType block_id = GetBlockIndex(id);
-    IdType offset   = GetOffset(id);
-
-    if (block_id >= strings_.size()) {
-        throw std::out_of_range("Invalid string ID: block ID out of range");
-    }
-
-    const char* block = strings_[block_id];
-    IdType      block_used =
-        (block_id == strings_.size() - 1) ? current_offset : BLOCK_SIZE;
-
-    if (offset >= block_used) {
-        throw std::out_of_range("Invalid string ID: offset out of range");
-    }
-
-    IdType length = *reinterpret_cast<const uint16_t*>(block + offset);
-    return std::string_view(block + offset + LENGTH_SIZE, length);
-}
-
-template <typename IdType, int LENGTH_SIZE_BITS, int BLOCK_INDEX_BITS>
-void StringTable<IdType, LENGTH_SIZE_BITS, BLOCK_INDEX_BITS>::Clear() {
-    for (char* block : strings_) {
-        free(block);
-    }
-    strings_.clear();
-    free_list.Clear();
-    current_block  = nullptr;
-    remaining_size = 0;
-    current_offset = 0;
-}
-
-template <typename IdType, int LENGTH_SIZE_BITS, int BLOCK_INDEX_BITS>
-void StringTable<IdType, LENGTH_SIZE_BITS, BLOCK_INDEX_BITS>::DestroyString(
-    IdType id) {
-    IdType block_id = GetBlockIndex(id);
-    IdType offset   = GetOffset(id);
-
-    if (block_id >= strings_.size()) {
-        throw std::out_of_range("Invalid string ID: block ID out of range");
-    }
-
-    char*  block = strings_[block_id];
-    IdType block_used =
-        (block_id == strings_.size() - 1) ? current_offset : BLOCK_SIZE;
-
-    if (offset >= block_used) {
-        throw std::out_of_range("Invalid string ID: offset out of range");
-    }
-    auto it = free_list.Find(id);
-    if (it) {
-        throw std::runtime_error("String already destroyed");
-    }
-    free_list.Insert(id);
-}
-
-template <typename IdType, int LENGTH_SIZE_BITS, int BLOCK_INDEX_BITS>
-void StringTable<IdType, LENGTH_SIZE_BITS, BLOCK_INDEX_BITS>::Save(
-    std::ofstream& ofs) const {
-    ofs.write(reinterpret_cast<const char*>(&remaining_size),
-              sizeof(remaining_size));
-    ofs.write(reinterpret_cast<const char*>(&current_offset),
-              sizeof(current_offset));
-    auto block_count = strings_.size();
-    ofs.write(reinterpret_cast<const char*>(&block_count), sizeof(block_count));
-
-    for (const char* block : strings_) {
-        ofs.write(block, BLOCK_SIZE);
-    }
-    auto free_count = free_list.Size();
-    ofs.write(reinterpret_cast<const char*>(&free_count), sizeof(free_count));
-    for (auto id : free_list) {
-        ofs.write(reinterpret_cast<const char*>(&id), sizeof(id));
-    }
-}
-
-template <typename IdType, int LENGTH_SIZE_BITS, int BLOCK_INDEX_BITS>
-void StringTable<IdType, LENGTH_SIZE_BITS, BLOCK_INDEX_BITS>::Load(
-    std::ifstream& ifs) {
-    Clear();
-    if (!ifs.read(reinterpret_cast<char*>(&remaining_size),
-                  sizeof(remaining_size))) {
-        throw std::runtime_error("Failed to read remaining_size");
-    }
-    if (!ifs.read(reinterpret_cast<char*>(&current_offset),
-                  sizeof(current_offset))) {
-        throw std::runtime_error("Failed to read current_offset");
-    }
-
-    auto block_count = strings_.size();
-    if (!ifs.read(reinterpret_cast<char*>(&block_count), sizeof(block_count))) {
-        throw std::runtime_error("Failed to read block_count");
-    }
-
-    if (block_count > MAX_BLOCK_COUNT) {
-        throw std::runtime_error(
-            "Invalid block_count: " + std::to_string(block_count) +
-            ", max: " + std::to_string(MAX_BLOCK_COUNT));
-    }
-
-    strings_.reserve(block_count);
-    for (uint32_t i = 0; i < block_count; ++i) {
-        char* block = static_cast<char*>(malloc(BLOCK_SIZE));
-        if (!block) {
-            throw std::bad_alloc();
-        }
-        if (!ifs.read(block, BLOCK_SIZE)) {
-            free(block);
-            throw std::runtime_error("Failed to read block data");
-        }
-        strings_.push_back(block);
-    }
-
-    uint32_t free_count = 0;
-    if (!ifs.read(reinterpret_cast<char*>(&free_count), sizeof(free_count))) {
-        if (ifs.eof()) {
-            free_count = 0;
-        } else {
-            throw std::runtime_error("Failed to read free_count");
-        }
-    }
-
-    if (free_count > 0) {
-        free_list.Reserve(free_count);
-        for (uint32_t i = 0; i < free_count; ++i) {
-            IdType id = 0;
-            if (!ifs.read(reinterpret_cast<char*>(&id), sizeof(id))) {
-                throw std::runtime_error("Failed to read free list entry " +
-                                         std::to_string(i));
+            if (total_bytes > BLOCK_BYTES) {
+                throw std::runtime_error("String too long for dynamic block");
             }
-            IdType block_id = GetBlockIndex(id);
-            IdType offset   = GetOffset(id);
 
-            if (block_id >= strings_.size()) {
-                throw std::runtime_error("Invalid free list ID: block " +
-                                         std::to_string(block_id) +
-                                         " out of range");
+            // 1. 尝试复用相同长度的空闲槽位
+            auto it = m_free_by_len_.find(len);
+            if (it != m_free_by_len_.end() && !it->second.empty()) {
+                IdType id = it->second.back();
+                it->second.pop_back();
+                if (it->second.empty()) {
+                    m_free_by_len_.erase(it);
+                }
+                auto [block_idx, offset] = Decode(id);
+                char* block_data         = m_blocks_[block_idx];
+                // 长度不需要更新，因为是相同长度的空闲槽位
+                std::memcpy(block_data + offset + 2, str.data(), len);
+                return id;
+            } else {
+                // +MAX_FIX_LENGTH因为定长表最大长度是MAX_FIX_LENGTH，如果当前字符串长度超过MAX_FIX_LENGTH，则不可能有定长表的空闲槽位可以复用，所以直接跳过定
+                // +3是因为动态表的每个槽位至少需要2字节存储长度信息，如果剩余空间不足2字节，则无法形成一个新的空闲槽位
+                auto upper_len_it = total_bytes + MAX_FIX_LENGTH + 3;
+                auto upper_it     = m_free_by_len_.upper_bound(upper_len_it);
+                if (upper_it != m_free_by_len_.end() &&
+                    !upper_it->second.empty()) {
+                    IdType id = upper_it->second.back();
+                    upper_it->second.pop_back();
+                    if (upper_it->second.empty()) {
+                        m_free_by_len_.erase(upper_it);
+                    }
+                    auto [block_idx, offset] = Decode(id);
+                    char* block_data         = m_blocks_[block_idx];
+                    // 更新长度
+                    std::memcpy(block_data + offset, &len, 2);
+                    std::memcpy(block_data + offset + 2, str.data(), len);
+                    // 将剩余空间重新加入空闲列表
+                    uint16_t free_len =
+                        static_cast<uint16_t>(upper_it->first - total_bytes);
+                    // 不用判断长度是否大于2，因为upper_it->first至少是total_bytes
+                    // + MAX_FIX_LENGTH + 3
+                    std::memcpy(block_data + offset + total_bytes, &free_len,
+                                2);
+                    IdType free_id = Encode(block_idx, offset + total_bytes);
+                    m_free_by_len_[free_len].push_back(free_id);
+                    return id;
+                }
             }
-            if (offset >= BLOCK_SIZE) {
-                throw std::runtime_error("Invalid free list ID: offset " +
-                                         std::to_string(offset) +
-                                         " out of range");
+
+            // 初始化为0，避免额外判断m_blocks_是否为空
+            if (m_cur_remainder_ < total_bytes) {
+                if (m_cur_remainder_ > 2 + MAX_FIX_LENGTH) {
+                    // 2. 当前块剩余空间不足，且可以形成一个新的空闲槽位
+                    char*    block_data = m_blocks_[m_cur_block_];
+                    uint16_t free_len =
+                        static_cast<uint16_t>(m_cur_remainder_ - 2);
+                    std::memcpy(block_data + BLOCK_BYTES - m_cur_remainder_,
+                                &free_len, 2);
+                    IdType free_id =
+                        Encode(m_cur_block_, BLOCK_BYTES - m_cur_remainder_);
+                    m_free_by_len_[free_len].push_back(free_id);
+                }
+                m_cur_block_     = m_blocks_.size();
+                char* block_data = (char*)malloc(BLOCK_BYTES);
+                if (block_data == nullptr) {
+                    throw std::runtime_error("Failed to allocate block");
+                }
+                m_blocks_.emplace_back(block_data);
+                m_cur_remainder_ = BLOCK_BYTES;
             }
-            free_list.PushBack(id);
+
+            char* block_data = m_blocks_[m_cur_block_];
+            std::memcpy(block_data, &len, 2);
+            std::memcpy(block_data + 2, str.data(), len);
+            auto id = Encode(m_cur_block_, BLOCK_BYTES - m_cur_remainder_);
+            m_cur_remainder_ -= total_bytes;
+            return id;
         }
-    }
 
-    if (!strings_.empty()) {
-        current_block = strings_.back();
-        if (current_offset > BLOCK_SIZE) {
-            throw std::runtime_error("Invalid current_offset: " +
-                                     std::to_string(current_offset));
+        std::string_view GetString(IdType id) const override {
+            auto [block_idx, offset] = Decode(id);
+            const char* block_data   = m_blocks_[block_idx];
+            uint16_t    len =
+                *reinterpret_cast<const uint16_t*>(block_data + offset);
+            return std::string_view(block_data + offset + 2, len);
         }
-    } else {
-        current_block  = nullptr;
-        current_offset = 0;
-        remaining_size = BLOCK_SIZE;
-    }
-    if (!strings_.empty() && current_block == nullptr) {
-        throw std::runtime_error(
-            "Inconsistent state: blocks exist but current_block is null");
-    }
-}
 
-template <typename IdType, int LENGTH_SIZE_BITS, int BLOCK_INDEX_BITS>
-bool StringTable<IdType, LENGTH_SIZE_BITS, BLOCK_INDEX_BITS>::
-    FindMostSuitableIdInFreeList(const std::string& str, IdType& id) {
-    if (free_list.Empty()) {
-        return false;
-    }
-    size_t len = str.size();
-    if (len > MAX_STRING_LENGTH) {
-        throw std::length_error("String exceeds maximum length");
-    }
+        void DestroyString(IdType id) override {
+            auto [block_idx, offset] = Decode(id);
+            if (block_idx == m_cur_block_) {
+                uint16_t len = *reinterpret_cast<const uint16_t*>(
+                    m_blocks_[block_idx] + offset);
+                if (offset + len + 2 == BLOCK_BYTES - m_cur_remainder_) {
+                    // 简单直接回收当前块末尾的字符串，无需加入空闲列表。不在考虑合并相邻空闲槽位的情况，
+                    m_cur_remainder_ += (len + 2);
+                    return;
+                }
+            }
+            const char* block_data = m_blocks_[block_idx];
+            uint16_t    len =
+                *reinterpret_cast<const uint16_t*>(block_data + offset);
+            m_free_by_len_[len].push_back(id);
+            // 注意：这里没有合并相邻的空闲槽位，可能会导致内存碎片，但是这里已经时长串了，合并的复杂度较高，
+            // 且复用性不高
+        }
 
-    auto it = std::lower_bound(free_list.Begin(), free_list.End(), len,
-                               [this](IdType id, uint16_t target_len) {
-                                   return GetLength(id) < target_len;
-                               });
+        void Clear() override {
+            for (auto& block : m_blocks_) {
+                free(block);
+            }
+            m_blocks_.clear();
+            m_free_by_len_.clear();
+            m_cur_block_     = 0;
+            m_cur_remainder_ = 0;
+        }
 
-    if (it == free_list.End()) {
-        return false;
-    }
+    private:
+        static std::pair<size_t, size_t> Decode(IdType id) {
+            size_t block_idx =
+                (id >> (OFFSET_BITS + 1)) & ((1ULL << BLOCK_BITS) - 1);
+            size_t offset = (id >> 1) & ((1ULL << OFFSET_BITS) - 1);
+            return {block_idx, offset};
+        }
 
-    IdType found_id                              = *it;
-    IdType block_len                             = GetLength(found_id);
-    IdType block_id                              = GetBlockIndex(found_id);
-    IdType offset                                = GetOffset(found_id);
-    char*  block                                 = strings_[block_id];
-    *reinterpret_cast<uint16_t*>(block + offset) = len;
-    std::memcpy(block + offset + LENGTH_SIZE, str.data(), len);
-    free_list.EraseAt(std::distance(free_list.Begin(), it));
-    IdType remaining = block_len - len;
-    if (remaining > LENGTH_SIZE) {
-        IdType new_id = MakeId(block_id, offset + LENGTH_SIZE + len);
-        free_list.Insert(new_id);
-        *reinterpret_cast<uint16_t*>(block + offset + LENGTH_SIZE + len) =
-            remaining - LENGTH_SIZE;
-    }
-    id = found_id;
-    return true;
-}
+        static IdType Encode(size_t block_idx, size_t offset) {
+            IdType id = 1;
+            id |= (static_cast<IdType>(offset) << 1);
+            id |= (static_cast<IdType>(block_idx) << (OFFSET_BITS + 1));
+            return id;
+        }
 
-template <typename IdType, int LENGTH_SIZE_BITS, int BLOCK_INDEX_BITS>
-uint16_t StringTable<IdType, LENGTH_SIZE_BITS, BLOCK_INDEX_BITS>::GetLength(
-    IdType id) const {
-    IdType block_id = GetBlockIndex(id);
-    IdType offset   = GetOffset(id);
-
-    if (block_id >= strings_.size()) {
-        throw std::out_of_range("Invalid string ID: block ID out of range");
-    }
-
-    const char* block = strings_[block_id];
-    return *reinterpret_cast<const uint16_t*>(block + offset);
-}
-
-class StringMgr;
-class StringMgrMaintainer {
-    StringMgrMaintainer()  = default;
-    ~StringMgrMaintainer() = default;
+        std::vector<char*>                      m_blocks_;
+        std::map<uint16_t, std::vector<IdType>> m_free_by_len_;
+        size_t                                  m_cur_block_     = 0;
+        IdType                                  m_cur_remainder_ = 0;
+    };
 
 public:
-    static StringMgrMaintainer& GetInstance() {
-        static StringMgrMaintainer instance;
-        return instance;
+    StringMgr() {
+        m_string_tables_.emplace_back(std::make_unique<DynamicStringTable>());
+        CreateFixedTables<MAX_INLINE_LEN>();
     }
-    /**
-     * Get the StringMgr for the given design_id. If it does not exist, create a
-     * new one. Ensure legality of design_id before calling this function. 
-     */
-    StringMgr* GetOrCreateStringMgr(ObjectId design_id);
-    StringMgr* CreateStringMgr(ObjectId design_id);
-    StringMgr* GetStringMgr(ObjectId design_id) const;
-    void       DestroyStringMgr(ObjectId design_id);
-    void       Clear();
-    void       Save(const std::string& dir) const;
-    void       Load(const std::string& dir);
+
+    IdType AddString(const std::string& str) {
+        size_t len = str.length();
+        if (len > MAX_FIX_LENGTH) {
+            return m_string_tables_[0]->AddString(str);
+        }
+        if (len < MAX_INLINE_LEN) {
+            union {
+                IdType  id;
+                uint8_t bytes[sizeof(MAX_INLINE_LEN)];
+            } u = {0};
+
+            u.bytes[MAX_INLINE_LEN - 1] = static_cast<uint8_t>(len << 1);
+            std::memcpy(u.bytes, str.data(), len);
+            return u.id;
+        }
+        return GetFixedTable(len)->AddString(str);
+    }
+
+    std::string_view GetString(IdType& id) const {
+        bool is_dynamic = (id & 1);
+        if (!is_dynamic) {
+            uint8_t len = (id >> 1) & 0x7F;
+            if (len < MAX_INLINE_LEN) {
+                union {
+                    IdType  id;
+                    uint8_t bytes[sizeof(MAX_INLINE_LEN)];
+                } u = {id};
+                return std::string_view(reinterpret_cast<const char*>(u.bytes),
+                                        len);
+            }
+            return GetFixedTable(len)->GetString(id);
+        } else {
+            return m_string_tables_[0]->GetString(id);
+        }
+    }
+
+    void DestroyString(const IdType& id) {
+        bool is_dynamic = (id & 1);
+        if (!is_dynamic) {
+            uint8_t len = (id >> 1) & 0x7F;
+            if (len < MAX_INLINE_LEN) return;
+            GetFixedTable(len)->DestroyString(id);
+        } else {
+            m_string_tables_[0]->DestroyString(id);
+        }
+    }
+
+    void Clear() {
+        for (auto& tbl : m_string_tables_) {
+            if (tbl != nullptr) {
+                tbl->Clear();
+            }
+        }
+    }
+
+    void PrintOptimizationInfo() const {
+        printf("=== Compile-time Optimization Info ===\n");
+        printf("LCM(1..%d) = %zu\n", MAX_FIX_LENGTH, LCM_VALUE);
+        printf("Optimal K = %zu\n", OPTIMAL_K);
+        printf("Block Bytes = %zu\n", BLOCK_BYTES);
+        printf("IdType bits = %zu\n", TOTAL_BITS);
+        printf("\nPer-length compile-time constants:\n");
+        printf("Len\tElements/Block\toffset_bits\tPerfect\n");
+        for (uint16_t len = 1; len <= MAX_FIX_LENGTH; ++len) {
+            auto params  = FixedTableParams<len>();
+            bool perfect = IsPerfectSize(params.elements_per_block);
+            printf("%d\t%zu\t\t%d\t\t%s\n", len, params.elements_per_block,
+                   params.offset_bits, perfect ? "Yes" : "No");
+        }
+    }
 
 private:
-    // for design_id, store the corresponding StringMgr pointer
-    std::map<ObjectId, StringMgr*> string_mgrs_;
-};
-
-class StringMgr {
-    friend class StringMgrMaintainer;
-    StringMgr(ObjectId design_id);
-    ~StringMgr();
-
-public:
-    using StringTableImpl = StringTable<ObjectNameArrayId, 16, 8>;
-    inline std::string_view GetName(DMObjectType      type,
-                                    ObjectNameArrayId id) const {
-        if (type >= DMObjectType::DESIGNOBJ_COUNT) {
-            throw std::out_of_range("Invalid object type");
+    template <size_t Len>
+    void CreateFixedTables() {
+        constexpr while (m_string_tables_.size() < Len - 1) {
+            m_string_tables_.emplace_back(nullptr);
         }
-        return name_tables_[(ObjectEnumType)type]->GetString(id);
+        m_string_tables_.emplace_back(
+            std::make_unique<FixLengthStringTable<Len>>());
+        if constexpr (Len < MAX_FIX_LENGTH) {
+            CreateFixedTables<Len + 1>();
+        }
     }
 
-    inline std::string_view GetPathname(DMObjectType      type,
-                                        ObjectNameArrayId id) const {
-        if (type >= DMObjectType::DESIGNOBJ_COUNT) {
-            throw std::out_of_range("Invalid object type");
-        }
-        return pathname_tables_[(ObjectEnumType)type]->GetString(id);
+    StringTableBase<IdType>* GetFixedTable(size_t len) {
+        // m_string_tables_[0] 是动态表，[1] 对应长度1，[2] 对应长度2，...
+        return m_string_tables_[len].get();
     }
 
-    inline ObjectNameArrayId SetName(DMObjectType       type,
-                                     const std::string& name) {
-        if (type >= DMObjectType::DESIGNOBJ_COUNT) {
-            throw std::out_of_range("Invalid object type");
-        }
-        return name_tables_[(ObjectEnumType)type]->AddString(name);
+    const StringTableBase<IdType>* GetFixedTable(size_t len) const {
+        return m_string_tables_[len].get();
     }
-
-    inline ObjectNameArrayId SetPathname(DMObjectType       type,
-                                         const std::string& pathname) {
-        if (type >= DMObjectType::DESIGNOBJ_COUNT) {
-            throw std::out_of_range("Invalid object type");
-        }
-        return pathname_tables_[(ObjectEnumType)type]->AddString(pathname);
-    }
-
-    inline void DestroyName(DMObjectType type, ObjectNameArrayId id) {
-        if (type >= DMObjectType::DESIGNOBJ_COUNT) {
-            throw std::out_of_range("Invalid object type");
-        }
-        name_tables_[(ObjectEnumType)type]->DestroyString(id);
-    }
-
-    inline void DestroyPathName(DMObjectType type, ObjectNameArrayId id) {
-        if (type >= DMObjectType::DESIGNOBJ_COUNT) {
-            throw std::out_of_range("Invalid object type");
-        }
-        pathname_tables_[(ObjectEnumType)type]->DestroyString(id);
-    }
-
-    void Save(const std::string& dir) const;
-    void Load(const std::string& dir);
-
-private:
-    ObjectId                      m_design_id;
-    std::vector<StringTableImpl*> name_tables_;
-    std::vector<StringTableImpl*> pathname_tables_;
+    std::vector<std::unique_ptr<StringTableBase<IdType>>> m_string_tables_;
 };
 
 }  // namespace db

@@ -108,54 +108,35 @@ BusNet* DesignMemoryMgr::CreateBusNet() {
     return busnet;
 }
 
-Design* DesignMemoryMgr::GetDesign(FullObjectId full_id) {
-    ObjectId real_id = full_id & IdMask;
-    return design_table.Pointer(real_id);
-}
-
-Inst* DesignMemoryMgr::GetInst(FullObjectId full_id) {
-    ObjectId real_id = full_id & IdMask;
-    return inst_table.Pointer(real_id);
-}
-
-HInst* DesignMemoryMgr::GetHInst(FullObjectId full_id) {
-    ObjectId real_id = full_id & IdMask;
-    return hinst_table.Pointer(real_id);
-}
-
-Net* DesignMemoryMgr::GetNet(FullObjectId full_id) {
-    ObjectId real_id = full_id & IdMask;
-    return net_table.Pointer(real_id);
-}
-
-HNet* DesignMemoryMgr::GetHNet(FullObjectId full_id) {
-    ObjectId real_id = full_id & IdMask;
-    return hnet_table.Pointer(real_id);
-}
-
-Pin* DesignMemoryMgr::GetPin(FullObjectId full_id) {
-    ObjectId real_id = full_id & IdMask;
-    return pin_table.Pointer(real_id);
-}
-
-HPin* DesignMemoryMgr::GetHPin(FullObjectId full_id) {
-    ObjectId real_id = full_id & IdMask;
-    return hpin_table.Pointer(real_id);
-}
-
-Port* DesignMemoryMgr::GetPort(FullObjectId full_id) {
-    ObjectId real_id = full_id & IdMask;
-    return port_table.Pointer(real_id);
-}
-
-BusPort* DesignMemoryMgr::GetBusPort(FullObjectId full_id) {
-    ObjectId real_id = full_id & IdMask;
-    return bus_port_table.Pointer(real_id);
-}
-
-BusNet* DesignMemoryMgr::GetBusNet(FullObjectId full_id) {
-    ObjectId real_id = full_id & IdMask;
-    return bus_net_table.Pointer(real_id);
+DesignObject* DesignMemoryMgr::GetDesignObject(FullObjectId full_id) {
+    ObjectId     id   = static_cast<ObjectId>(full_id & IdMask);
+    DMObjectType type = static_cast<DMObjectType>(full_id >> TypeOffset);
+    switch (type) {
+        case DMObjectType::DESIGN:
+            return design_table.Pointer(id);
+        case DMObjectType::INST:
+            return inst_table.Pointer(id);
+        case DMObjectType::HINST:
+            return hinst_table.Pointer(id);
+        case DMObjectType::NET:
+            return net_table.Pointer(id);
+        case DMObjectType::HNET:
+            return hnet_table.Pointer(id);
+        case DMObjectType::PIN:
+            return pin_table.Pointer(id);
+        case DMObjectType::HPIN:
+            return hpin_table.Pointer(id);
+        case DMObjectType::PORT:
+            return port_table.Pointer(id);
+        case DMObjectType::BUS_PORT:
+            return bus_port_table.Pointer(id);
+        case DMObjectType::BUS_NET:
+            return bus_net_table.Pointer(id);
+        default:
+            DB_LOG(ERROR) << "GetDesignObject: invalid object type " << type
+                          << "\n";
+            return nullptr;
+    }
 }
 
 Design* DesignMemoryMgr::GetDesign(ObjectId id) {

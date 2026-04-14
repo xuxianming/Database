@@ -28,16 +28,8 @@ public:
     static BusPort* CreateBusPort();
     static BusNet*  CreateBusNet();
 
-    static Design*  GetDesign(FullObjectId full_id);
-    static Inst*    GetInst(FullObjectId full_id);
-    static HInst*   GetHInst(FullObjectId full_id);
-    static Net*     GetNet(FullObjectId full_id);
-    static HNet*    GetHNet(FullObjectId full_id);
-    static Pin*     GetPin(FullObjectId full_id);
-    static HPin*    GetHPin(FullObjectId full_id);
-    static Port*    GetPort(FullObjectId full_id);
-    static BusPort* GetBusPort(FullObjectId full_id);
-    static BusNet*  GetBusNet(FullObjectId full_id);
+    static DesignObject*  GetDesignObject(FullObjectId full_id);
+
 
     static Design*  GetDesign(ObjectId id);
     static Inst*    GetInst(ObjectId id);

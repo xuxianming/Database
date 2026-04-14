@@ -27,6 +27,8 @@ public:
     static BusNet*  GetBusNet(ObjectId bus_net_id);
 
 private:
+    ObjectId m_master_design_id{};  // For objects that belong to a design,
+                                    // store the design ID for quick access
 };
 }  // namespace db
 

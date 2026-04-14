@@ -1,5 +1,4 @@
 #include "DataModel/Design/Design.h"
-#include "Design.h"
 
 namespace db {
 size_t   Design::GetSize() const { return sizeof(Design); }
