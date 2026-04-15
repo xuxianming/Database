@@ -1,29 +1,24 @@
 #ifndef DATAMODEL_DESIGN_DESIGN_H_
 #define DATAMODEL_DESIGN_DESIGN_H_
-#include "DataModel/Design/DesignObject.h"
+#include "DataModel/Design/StringMgr.h"
+#include "DataModel/Design/Type.h"
+#include "DataModel/Object.h"
 namespace db {
-class StringMgrMaintainer;
-class StringMgr;
-class Design : public DesignObject {
-    friend class StringMgrMaintainer;
+class Design : public Object {
+    friend class StringMgr<ObjectId>;
 
 public:
     Design()           = default;
     ~Design() override = default;
-    size_t GetSize() const override;
+    size_t   GetSize() const override;
     uint32_t GetMaxFanout() const;
-private:
-    inline void SetStringMgr(StringMgr* mgr) { m_string_mgr = mgr; }
 
 private:
-    NetArrayId     m_nets_id{};
-    HNetArrayId    m_hnets_id{};
-    PortArrayId    m_ports_id{};
-    InstArrayId    m_insts_id{};
-    HInstArrayId   m_hinsts_id{};
-    BusNetArrayId  m_bus_nets_id{};
-    BusPortArrayId m_bus_ports_id{};
-    StringMgr*     m_string_mgr{nullptr};
+    inline void SetStringMgr(StringMgr<ObjectId>* mgr) { m_string_mgr = mgr; }
+
+private:
+    ObjectId             m_top_module_id;
+    StringMgr<ObjectId>* m_string_mgr{nullptr};
 };
 
 }  // namespace db

@@ -5,12 +5,11 @@
 #include "DataModel/Type.h"
 namespace db {
 class Design;
+class Module;
 class Inst;
 class HInst;
 class Net;
-class HNet;
 class Pin;
-class HPin;
 class Port;
 class BusPort;
 class BusNet;
@@ -18,40 +17,34 @@ class BusNet;
 class DesignMemoryMgr {
 public:
     static Design*  CreateDesign();
+    static Module*  CreateModule();
     static Inst*    CreateInst();
     static HInst*   CreateHInst();
     static Net*     CreateNet();
-    static HNet*    CreateHNet();
     static Pin*     CreatePin();
-    static HPin*    CreateHPin();
     static Port*    CreatePort();
     static BusPort* CreateBusPort();
     static BusNet*  CreateBusNet();
 
-    static DesignObject*  GetDesignObject(FullObjectId full_id);
-
-
     static Design*  GetDesign(ObjectId id);
+    static Module*  GetModule(ObjectId id);
     static Inst*    GetInst(ObjectId id);
     static HInst*   GetHInst(ObjectId id);
     static Net*     GetNet(ObjectId id);
-    static HNet*    GetHNet(ObjectId id);
     static Pin*     GetPin(ObjectId id);
-    static HPin*    GetHPin(ObjectId id);
     static Port*    GetPort(ObjectId id);
     static BusPort* GetBusPort(ObjectId id);
     static BusNet*  GetBusNet(ObjectId id);
 
-    static void DestroyDesign(Design* obj);
-    static void DestroyInst(Inst* obj);
-    static void DestroyHInst(HInst* obj);
-    static void DestroyNet(Net* obj);
-    static void DestroyHNet(HNet* obj);
-    static void DestroyPin(Pin* obj);
-    static void DestroyHPin(HPin* obj);
-    static void DestroyPort(Port* obj);
-    static void DestroyBusPort(BusPort* obj);
-    static void DestroyBusNet(BusNet* obj);
+    static void DestroyDesign(ObjectId id);
+    static void DestroyModule(ObjectId id);
+    static void DestroyInst(ObjectId id);
+    static void DestroyHInst(ObjectId id);
+    static void DestroyNet(ObjectId id);
+    static void DestroyPin(ObjectId id);
+    static void DestroyPort(ObjectId id);
+    static void DestroyBusPort(ObjectId id);
+    static void DestroyBusNet(ObjectId id);
 
     static void    SetCurrentDesign(ObjectId designId);
     static Design* GetCurrentDesign();

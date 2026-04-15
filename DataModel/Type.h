@@ -38,15 +38,14 @@ constexpr ObjectId IdMask     = 0xFFFFFFFF;
 
 #define BLOCK(X) \
     X(DESIGN) \
+    X(MODULE) \
     X(INST) \
     X(NET) \
     X(PIN)  \
     X(PORT) \
     X(BUS_PORT) \
     X(BUS_NET) \
-    X(HNET) \
     X(HINST) \
-    X(HPIN)  \
     X(DESIGNOBJ_COUNT) \
     X(LIBERTYLIB) \
     X(LIBCELL) \

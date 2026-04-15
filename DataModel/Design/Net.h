@@ -2,9 +2,10 @@
 #define DATAMODEL_DESIGN_NET_H_
 
 #include <cstdint>
-#include "DataModel/Design/NetBase.h"
+#include "DataModel/Design/Type.h"
+#include "DataModel/Object.h"
 namespace db {
-class Net : public NetBase {
+class Net : public Object {
 public:
     Net()           = default;
     ~Net() override = default;

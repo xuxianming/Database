@@ -24,9 +24,8 @@ constexpr IdType Pow2() {
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
 class TableBlock {
     static_assert(std::is_integral<IdType>::value, "IdType must be integral");
-    static_assert(
-        OBJECT_INDEX_BITS > 0 && OBJECT_INDEX_BITS < sizeof(IdType) * 8,
-        "OBJECT_INDEX_BITS must be between 1 and (sizeof(IdType)*8 - 1)");
+    static_assert(OBJECT_INDEX_BITS > 0 && OBJECT_INDEX_BITS < sizeof(IdType) * 8,
+                  "OBJECT_INDEX_BITS must be between 1 and (sizeof(IdType)*8 - 1)");
 
 public:
     explicit TableBlock(uint32_t block_idx);
@@ -56,49 +55,108 @@ TableBlock<TYPE, IdType, OBJECT_INDEX_BITS>::TableBlock(uint32_t block_idx)
 }
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
-void TableBlock<TYPE, IdType, OBJECT_INDEX_BITS>::WriteToFile(
-    std::ofstream& file) const {
+void TableBlock<TYPE, IdType, OBJECT_INDEX_BITS>::WriteToFile(std::ofstream& file) const {
     file.write(reinterpret_cast<const char*>(m_objects), BLOCK_BYTES);
 }
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
-void TableBlock<TYPE, IdType, OBJECT_INDEX_BITS>::ReadFromFile(
-    std::ifstream& file) {
+void TableBlock<TYPE, IdType, OBJECT_INDEX_BITS>::ReadFromFile(std::ifstream& file) {
     file.read(reinterpret_cast<char*>(m_objects), BLOCK_BYTES);
 }
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS = 7>
 class ObjectTable {
     static_assert(std::is_integral<IdType>::value, "IdType must be integral");
-    static_assert(
-        OBJECT_INDEX_BITS > 0 && OBJECT_INDEX_BITS < sizeof(IdType) * 8,
-        "OBJECT_INDEX_BITS must be between 1 and (sizeof(IdType)*8 - 1)");
+    static_assert(OBJECT_INDEX_BITS > 0 && OBJECT_INDEX_BITS < sizeof(IdType) * 8,
+                  "OBJECT_INDEX_BITS must be between 1 and (sizeof(IdType)*8 - 1)");
 
 public:
     explicit ObjectTable(uint8_t type, const std::string& dbPath = ".");
     ~ObjectTable();
 
-    IdType GetNextObjId();
-    TYPE*  Make();
-    void   Destroy(TYPE* object);
-    TYPE*  Pointer(IdType id) const;
-    size_t Size() const { return m_size; }
-    void   Clear();
+    inline IdType GetNextObjId() {
+        if (m_free == OBJECT_ID_NULL) {
+            MakeBlock();
+        }
+        return m_free;
+    }
+    inline TYPE* Make() {
+        if (m_free == OBJECT_ID_NULL) {
+            MakeBlock();
+        }
+        IdType id     = m_free;
+        TYPE*  object = Pointer(id);
+        if (!object) {
+            DB_LOG(ERROR) << "Make() failed: invalid free ID " << id << "\n";
+            return nullptr;
+        }
 
-    bool Save();
-    bool Load();
+        auto* next_ptr = reinterpret_cast<IdType*>(object);
+        m_free         = *next_ptr;
+        object         = new (object) TYPE();
+
+        ++m_size;
+        return object;
+    }
+    inline void Destroy(TYPE* object) {
+        if (!object) {
+            return;
+        }
+
+        IdType id = object->GetObjectId();
+        if (id == OBJECT_ID_NULL) {
+            DB_LOG(ERROR) << "Destroy: object ID is null\n";
+            return;
+        }
+        object->~TYPE();
+        FreePush(id);
+        --m_size;
+    }
+    inline void Destroy(IdType id) {
+        if (id == OBJECT_ID_NULL) {
+            return;
+        }
+        TYPE* object = Pointer(id);
+        if (object) {
+            object->~TYPE();
+        }
+        FreePush(id);
+        --m_size;
+    }
+    inline TYPE* Pointer(IdType id) const {
+        if (id == OBJECT_ID_NULL) {
+            return nullptr;
+        }
+
+        uint32_t blk_idx = GetBlockIndex(id);
+        uint32_t obj_idx = GetObjectIndex(id);
+
+        if (blk_idx >= m_blocks.size()) {
+            DB_LOG(WARNING) << "Pointer: invalid block index " << blk_idx
+                            << " (max: " << m_blocks.size() << ")\n";
+            return nullptr;
+        }
+
+        if (obj_idx >= BLOCK_SIZE) {
+            DB_LOG(WARNING) << "Pointer: invalid object index " << obj_idx
+                            << " (max: " << BLOCK_SIZE << ")\n";
+            return nullptr;
+        }
+
+        return m_blocks[blk_idx]->GetObject(obj_idx);
+    }
+    inline size_t Size() const { return m_size; }
+    void          Clear();
+    bool          Save();
+    bool          Load();
 
     static constexpr uint32_t GetBlockSize() { return BLOCK_SIZE; }
     static constexpr int      GetIndexBits() { return OBJECT_INDEX_BITS; }
-    static constexpr int      GetBlockIndexBits() {
-        return sizeof(IdType) * 8 - OBJECT_INDEX_BITS;
-    }
-    static constexpr IdType GetMaxBlockCount() {
+    static constexpr int      GetBlockIndexBits() { return sizeof(IdType) * 8 - OBJECT_INDEX_BITS; }
+    static constexpr IdType   GetMaxBlockCount() {
         return (static_cast<IdType>(1) << GetBlockIndexBits()) - 1;
     }
-    static constexpr IdType GetMaxObjectCount() {
-        return GetMaxBlockCount() * BLOCK_SIZE;
-    }
+    static constexpr IdType GetMaxObjectCount() { return GetMaxBlockCount() * BLOCK_SIZE; }
 
 private:
     using BlockType = TableBlock<TYPE, IdType, OBJECT_INDEX_BITS>;
@@ -130,16 +188,7 @@ private:
 };
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
-IdType ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::GetNextObjId() {
-    if (m_free == OBJECT_ID_NULL) {
-        MakeBlock();
-    }
-    return m_free;
-}
-
-template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
-ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::ObjectTable(
-    uint8_t type, const std::string& dbPath)
+ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::ObjectTable(uint8_t type, const std::string& dbPath)
     : m_free(OBJECT_ID_NULL), m_type(type), m_db_path(dbPath) {
     fs::create_directories(dbPath);
 
@@ -161,8 +210,8 @@ ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::~ObjectTable() {
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
 std::string ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::GetFileName() const {
-    return m_db_path + "/" + std::to_string(m_type) + "_" +
-           std::to_string(OBJECT_INDEX_BITS) + "bits.db";
+    return m_db_path + "/" + std::to_string(m_type) + "_" + std::to_string(OBJECT_INDEX_BITS) +
+           "bits.db";
 }
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
@@ -172,8 +221,7 @@ void ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::MakeBlock() {
     m_blocks.push_back(block);
 
     if (block_index > GetMaxBlockCount()) {
-        DB_LOG(ERROR) << "Exceeded maximum block count: " << GetMaxBlockCount()
-                      << "\n";
+        DB_LOG(ERROR) << "Exceeded maximum block count: " << GetMaxBlockCount() << "\n";
         delete block;
         return;
     }
@@ -193,66 +241,6 @@ void ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::FreePush(IdType id) {
 }
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
-TYPE* ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Make() {
-    if (m_free == OBJECT_ID_NULL) {
-        MakeBlock();
-    }
-    IdType id     = m_free;
-    TYPE*  object = Pointer(id);
-    if (!object) {
-        DB_LOG(ERROR) << "Make() failed: invalid free ID " << id << "\n";
-        return nullptr;
-    }
-
-    auto* next_ptr = reinterpret_cast<IdType*>(object);
-    m_free         = *next_ptr;
-    object         = new (object) TYPE();
-
-    ++m_size;
-    return object;
-}
-
-template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
-void ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Destroy(TYPE* object) {
-    if (!object) {
-        return;
-    }
-
-    IdType id = object->GetObjectId();
-    if (id == OBJECT_ID_NULL) {
-        DB_LOG(ERROR) << "Destroy: object ID is null\n";
-        return;
-    }
-    object->~TYPE();
-    FreePush(id);
-    --m_size;
-}
-
-template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
-TYPE* ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Pointer(IdType id) const {
-    if (id == OBJECT_ID_NULL) {
-        return nullptr;
-    }
-
-    uint32_t blk_idx = GetBlockIndex(id);
-    uint32_t obj_idx = GetObjectIndex(id);
-
-    if (blk_idx >= m_blocks.size()) {
-        DB_LOG(WARNING) << "Pointer: invalid block index " << blk_idx
-                        << " (max: " << m_blocks.size() << ")\n";
-        return nullptr;
-    }
-
-    if (obj_idx >= BLOCK_SIZE) {
-        DB_LOG(WARNING) << "Pointer: invalid object index " << obj_idx
-                        << " (max: " << BLOCK_SIZE << ")\n";
-        return nullptr;
-    }
-
-    return m_blocks[blk_idx]->GetObject(obj_idx);
-}
-
-template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
 void ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Clear() {
     for (auto block : m_blocks) {
         delete block;
@@ -267,8 +255,7 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Save() {
     std::string   filename = GetFileName();
     std::ofstream file(filename, std::ios::binary);
     if (!file.is_open()) {
-        DB_LOG(ERROR) << "Failed to open file for writing: " << filename
-                      << "\n";
+        DB_LOG(ERROR) << "Failed to open file for writing: " << filename << "\n";
         return false;
     }
 
@@ -280,12 +267,10 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Save() {
         file.write(reinterpret_cast<const char*>(&version), sizeof(version));
 
         uint32_t index_bits = OBJECT_INDEX_BITS;
-        file.write(reinterpret_cast<const char*>(&index_bits),
-                   sizeof(index_bits));
+        file.write(reinterpret_cast<const char*>(&index_bits), sizeof(index_bits));
 
         uint32_t id_type_size = sizeof(IdType);
-        file.write(reinterpret_cast<const char*>(&id_type_size),
-                   sizeof(id_type_size));
+        file.write(reinterpret_cast<const char*>(&id_type_size), sizeof(id_type_size));
 
         uint8_t type = m_type;
         file.write(reinterpret_cast<const char*>(&type), sizeof(type));
@@ -294,8 +279,7 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Save() {
         file.write(reinterpret_cast<const char*>(&count), sizeof(count));
 
         auto block_count = static_cast<uint32_t>(m_blocks.size());
-        file.write(reinterpret_cast<const char*>(&block_count),
-                   sizeof(block_count));
+        file.write(reinterpret_cast<const char*>(&block_count), sizeof(block_count));
         file.write(reinterpret_cast<const char*>(&m_free), sizeof(m_free));
 
         for (auto block : m_blocks) {
@@ -318,8 +302,7 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Load() {
     std::string   filename = GetFileName();
     std::ifstream file(filename, std::ios::binary);
     if (!file.is_open()) {
-        DB_LOG(INFO) << "File not found, starting with empty table: "
-                     << filename << "\n";
+        DB_LOG(INFO) << "File not found, starting with empty table: " << filename << "\n";
         return true;
     }
 
@@ -344,22 +327,18 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Load() {
             return false;
         } else if (version == 3) {
             uint32_t saved_index_bits;
-            file.read(reinterpret_cast<char*>(&saved_index_bits),
-                      sizeof(saved_index_bits));
+            file.read(reinterpret_cast<char*>(&saved_index_bits), sizeof(saved_index_bits));
             if (!file.good() || saved_index_bits != OBJECT_INDEX_BITS) {
-                DB_LOG(ERROR)
-                    << "Index bits mismatch: expected " << OBJECT_INDEX_BITS
-                    << ", got " << saved_index_bits << "\n";
+                DB_LOG(ERROR) << "Index bits mismatch: expected " << OBJECT_INDEX_BITS << ", got "
+                              << saved_index_bits << "\n";
                 return false;
             }
 
             uint32_t saved_id_size;
-            file.read(reinterpret_cast<char*>(&saved_id_size),
-                      sizeof(saved_id_size));
+            file.read(reinterpret_cast<char*>(&saved_id_size), sizeof(saved_id_size));
             if (saved_id_size != sizeof(IdType)) {
-                DB_LOG(ERROR)
-                    << "IdType size mismatch: expected " << sizeof(IdType)
-                    << ", got " << saved_id_size << "\n";
+                DB_LOG(ERROR) << "IdType size mismatch: expected " << sizeof(IdType) << ", got "
+                              << saved_id_size << "\n";
                 return false;
             }
         } else {
@@ -370,8 +349,8 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Load() {
         uint8_t type;
         file.read(reinterpret_cast<char*>(&type), sizeof(type));
         if (!file.good() || type != m_type) {
-            DB_LOG(ERROR) << "Type mismatch: expected " << (int)m_type
-                          << ", got " << (int)type << "\n";
+            DB_LOG(ERROR) << "Type mismatch: expected " << (int)m_type << ", got " << (int)type
+                          << "\n";
             return false;
         }
 
@@ -387,8 +366,8 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Load() {
         }
 
         if (block_count > GetMaxBlockCount()) {
-            DB_LOG(ERROR) << "Block count " << block_count
-                          << " exceeds maximum " << GetMaxBlockCount() << "\n";
+            DB_LOG(ERROR) << "Block count " << block_count << " exceeds maximum "
+                          << GetMaxBlockCount() << "\n";
             return false;
         }
 

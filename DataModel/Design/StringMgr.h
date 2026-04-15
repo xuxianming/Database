@@ -37,16 +37,14 @@ public:
 };
 
 // ==================== StringMgr 主类 ====================
-template <typename IdType, uint8_t MAX_FIX_LENGTH = 127,
-          IdType MinElementCount = 128, uint16_t BlockSizeMultiple = 1>
+template <typename IdType, uint8_t MAX_FIX_LENGTH = 127, IdType MinElementCount = 128,
+          uint16_t BlockSizeMultiple = 1>
 class StringMgr {
     static_assert(std::is_integral<IdType>::value, "IdType must be integral");
     static_assert(MAX_FIX_LENGTH > 0 && MAX_FIX_LENGTH <= 127,
                   "MAX_FIX_LENGTH must be between 1 and 127");
-    static_assert(MinElementCount > 0,
-                  "MinElementCount must be greater than 0");
-    static_assert(BlockSizeMultiple > 0,
-                  "BlockSizeMultiple must be greater than 0");
+    static_assert(MinElementCount > 0, "MinElementCount must be greater than 0");
+    static_assert(BlockSizeMultiple > 0, "BlockSizeMultiple must be greater than 0");
 
     // ---------- 编译期常量 ----------
     static constexpr size_t LCM_VALUE      = LCMRange<MAX_FIX_LENGTH>::value;
@@ -82,11 +80,10 @@ class StringMgr {
         return std::max({FindBestK<Is + 1>()...});
     }
 
-    static constexpr size_t OPTIMAL_K =
-        ComputeOptimalK(std::make_index_sequence<MAX_FIX_LENGTH>());
+    static constexpr size_t OPTIMAL_K = ComputeOptimalK(std::make_index_sequence<MAX_FIX_LENGTH>());
 
     static constexpr size_t BASE_BLOCK_BYTES = LCM_VALUE * OPTIMAL_K;
-    static constexpr size_t BLOCK_BYTES = BASE_BLOCK_BYTES * BlockSizeMultiple;
+    static constexpr size_t BLOCK_BYTES      = BASE_BLOCK_BYTES * BlockSizeMultiple;
 
     static constexpr size_t TOTAL_BITS     = sizeof(IdType) * 8;
     static constexpr size_t FIXED_LEN_BITS = 7;
@@ -105,29 +102,24 @@ class StringMgr {
             }
             return bits;
         }();
-        static constexpr size_t available_bits =
-            TOTAL_BITS - FLAG_BIT - FIXED_LEN_BITS;
-        static constexpr size_t block_bits = available_bits - offset_bits;
+        static constexpr size_t available_bits = TOTAL_BITS - FLAG_BIT - FIXED_LEN_BITS;
+        static constexpr size_t block_bits     = available_bits - offset_bits;
         static_assert(block_bits > 0, "IdType too small to encode block index");
 
-        static constexpr IdType offset_mask =
-            (static_cast<IdType>(1) << offset_bits) - 1;
-        static constexpr IdType block_mask =
-            (static_cast<IdType>(1) << block_bits) - 1;
+        static constexpr IdType offset_mask = (static_cast<IdType>(1) << offset_bits) - 1;
+        static constexpr IdType block_mask  = (static_cast<IdType>(1) << block_bits) - 1;
 
         static constexpr IdType Encode(size_t block_idx, size_t offset) {
             IdType id = 0;
             id |= (static_cast<IdType>(Len) << 1);
-            id |= (static_cast<IdType>(block_idx)
-                   << (offset_bits + 1 + FIXED_LEN_BITS));
+            id |= (static_cast<IdType>(block_idx) << (offset_bits + 1 + FIXED_LEN_BITS));
             id |= (static_cast<IdType>(offset) << (1 + FIXED_LEN_BITS));
             return id;
         }
 
         static constexpr std::pair<size_t, size_t> Decode(IdType id) {
-            size_t offset = (id >> (1 + FIXED_LEN_BITS)) & offset_mask;
-            size_t block_idx =
-                (id >> (offset_bits + 1 + FIXED_LEN_BITS)) & block_mask;
+            size_t offset    = (id >> (1 + FIXED_LEN_BITS)) & offset_mask;
+            size_t block_idx = (id >> (offset_bits + 1 + FIXED_LEN_BITS)) & block_mask;
             return {block_idx, offset};
         }
     };
@@ -155,8 +147,7 @@ class StringMgr {
                 std::memcpy(block_data + offset * Len, str.data(), Len);
                 return PARAMS.Encode(block_idx, offset);
             }
-            if (m_blocks_.empty() ||
-                m_cur_count_ >= PARAMS.elements_per_block) {
+            if (m_blocks_.empty() || m_cur_count_ >= PARAMS.elements_per_block) {
                 m_cur_block_     = m_blocks_.size();
                 char* block_data = (char*)malloc(BLOCK_BYTES);
                 if (block_data == nullptr) {
@@ -242,8 +233,7 @@ class StringMgr {
                 // +3是因为动态表的每个槽位至少需要2字节存储长度信息，如果剩余空间不足2字节，则无法形成一个新的空闲槽位
                 auto upper_len_it = total_bytes + MAX_FIX_LENGTH + 3;
                 auto upper_it     = m_free_by_len_.upper_bound(upper_len_it);
-                if (upper_it != m_free_by_len_.end() &&
-                    !upper_it->second.empty()) {
+                if (upper_it != m_free_by_len_.end() && !upper_it->second.empty()) {
                     IdType id = upper_it->second.back();
                     upper_it->second.pop_back();
                     if (upper_it->second.empty()) {
@@ -255,12 +245,10 @@ class StringMgr {
                     std::memcpy(block_data + offset, &len, 2);
                     std::memcpy(block_data + offset + 2, str.data(), len);
                     // 将剩余空间重新加入空闲列表
-                    uint16_t free_len =
-                        static_cast<uint16_t>(upper_it->first - total_bytes);
+                    uint16_t free_len = static_cast<uint16_t>(upper_it->first - total_bytes);
                     // 不用判断长度是否大于2，因为upper_it->first至少是total_bytes
                     // + MAX_FIX_LENGTH + 3
-                    std::memcpy(block_data + offset + total_bytes, &free_len,
-                                2);
+                    std::memcpy(block_data + offset + total_bytes, &free_len, 2);
                     IdType free_id = Encode(block_idx, offset + total_bytes);
                     m_free_by_len_[free_len].push_back(free_id);
                     return id;
@@ -272,12 +260,9 @@ class StringMgr {
                 if (m_cur_remainder_ > 2 + MAX_FIX_LENGTH) {
                     // 2. 当前块剩余空间不足，且可以形成一个新的空闲槽位
                     char*    block_data = m_blocks_[m_cur_block_];
-                    uint16_t free_len =
-                        static_cast<uint16_t>(m_cur_remainder_ - 2);
-                    std::memcpy(block_data + BLOCK_BYTES - m_cur_remainder_,
-                                &free_len, 2);
-                    IdType free_id =
-                        Encode(m_cur_block_, BLOCK_BYTES - m_cur_remainder_);
+                    uint16_t free_len   = static_cast<uint16_t>(m_cur_remainder_ - 2);
+                    std::memcpy(block_data + BLOCK_BYTES - m_cur_remainder_, &free_len, 2);
+                    IdType free_id = Encode(m_cur_block_, BLOCK_BYTES - m_cur_remainder_);
                     m_free_by_len_[free_len].push_back(free_id);
                 }
                 m_cur_block_     = m_blocks_.size();
@@ -300,16 +285,14 @@ class StringMgr {
         std::string_view GetString(IdType id) const override {
             auto [block_idx, offset] = Decode(id);
             const char* block_data   = m_blocks_[block_idx];
-            uint16_t    len =
-                *reinterpret_cast<const uint16_t*>(block_data + offset);
+            uint16_t    len          = *reinterpret_cast<const uint16_t*>(block_data + offset);
             return std::string_view(block_data + offset + 2, len);
         }
 
         void DestroyString(IdType id) override {
             auto [block_idx, offset] = Decode(id);
             if (block_idx == m_cur_block_) {
-                uint16_t len = *reinterpret_cast<const uint16_t*>(
-                    m_blocks_[block_idx] + offset);
+                uint16_t len = *reinterpret_cast<const uint16_t*>(m_blocks_[block_idx] + offset);
                 if (offset + len + 2 == BLOCK_BYTES - m_cur_remainder_) {
                     // 简单直接回收当前块末尾的字符串，无需加入空闲列表。不在考虑合并相邻空闲槽位的情况，
                     m_cur_remainder_ += (len + 2);
@@ -317,8 +300,7 @@ class StringMgr {
                 }
             }
             const char* block_data = m_blocks_[block_idx];
-            uint16_t    len =
-                *reinterpret_cast<const uint16_t*>(block_data + offset);
+            uint16_t    len        = *reinterpret_cast<const uint16_t*>(block_data + offset);
             m_free_by_len_[len].push_back(id);
             // 注意：这里没有合并相邻的空闲槽位，可能会导致内存碎片，但是这里已经时长串了，合并的复杂度较高，
             // 且复用性不高
@@ -336,9 +318,8 @@ class StringMgr {
 
     private:
         static std::pair<size_t, size_t> Decode(IdType id) {
-            size_t block_idx =
-                (id >> (OFFSET_BITS + 1)) & ((1ULL << BLOCK_BITS) - 1);
-            size_t offset = (id >> 1) & ((1ULL << OFFSET_BITS) - 1);
+            size_t block_idx = (id >> (OFFSET_BITS + 1)) & ((1ULL << BLOCK_BITS) - 1);
+            size_t offset    = (id >> 1) & ((1ULL << OFFSET_BITS) - 1);
             return {block_idx, offset};
         }
 
@@ -388,8 +369,7 @@ public:
                     IdType  id;
                     uint8_t bytes[sizeof(MAX_INLINE_LEN)];
                 } u = {id};
-                return std::string_view(reinterpret_cast<const char*>(u.bytes),
-                                        len);
+                return std::string_view(reinterpret_cast<const char*>(u.bytes), len);
             }
             return GetFixedTable(len)->GetString(id);
         } else {
@@ -416,30 +396,16 @@ public:
         }
     }
 
-    void PrintOptimizationInfo() const {
-        printf("=== Compile-time Optimization Info ===\n");
-        printf("LCM(1..%d) = %zu\n", MAX_FIX_LENGTH, LCM_VALUE);
-        printf("Optimal K = %zu\n", OPTIMAL_K);
-        printf("Block Bytes = %zu\n", BLOCK_BYTES);
-        printf("IdType bits = %zu\n", TOTAL_BITS);
-        printf("\nPer-length compile-time constants:\n");
-        printf("Len\tElements/Block\toffset_bits\tPerfect\n");
-        for (uint16_t len = 1; len <= MAX_FIX_LENGTH; ++len) {
-            auto params  = FixedTableParams<len>();
-            bool perfect = IsPerfectSize(params.elements_per_block);
-            printf("%d\t%zu\t\t%d\t\t%s\n", len, params.elements_per_block,
-                   params.offset_bits, perfect ? "Yes" : "No");
-        }
-    }
+    void PrintOptimizationInfo() const {}
 
 private:
     template <size_t Len>
     void CreateFixedTables() {
-        constexpr while (m_string_tables_.size() < Len - 1) {
+        static_assert(Len >= 1 && Len <= MAX_FIX_LENGTH);
+        while (m_string_tables_.size() < Len - 1) {
             m_string_tables_.emplace_back(nullptr);
         }
-        m_string_tables_.emplace_back(
-            std::make_unique<FixLengthStringTable<Len>>());
+        m_string_tables_.emplace_back(std::make_unique<FixLengthStringTable<Len>>());
         if constexpr (Len < MAX_FIX_LENGTH) {
             CreateFixedTables<Len + 1>();
         }

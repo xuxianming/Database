@@ -1,5 +1,0 @@
-
-namespace db {
-
-
-}  // namespace db

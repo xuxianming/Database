@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <numeric>
+#include <stdexcept>
 #ifndef UTILS_UNILS_H
 #define UTILS_UNILS_H
 
