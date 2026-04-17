@@ -20,14 +20,14 @@ public:
     ~Module();
 
 private:
-    ObjectId       m_design_id;
-    NetArrayId     m_nets_id{};
-    HNetArrayId    m_hnets_id{};
-    PortArrayId    m_ports_id{};
-    InstArrayId    m_insts_id{};
-    HInstArrayId   m_hinsts_id{};
-    BusNetArrayId  m_bus_nets_id{};
-    BusPortArrayId m_bus_ports_id{};
+    ObjectId       m_design_id{kInvalidId};
+    NetArrayId     m_nets_id{kInvalidId};
+    PortArrayId    m_ports_id{kInvalidId};
+    InstArrayId    m_insts_id{kInvalidId};
+    HInstArrayId   m_hinsts_id{kInvalidId};
+    BusNetArrayId  m_bus_nets_id{kInvalidId};
+    BusPortArrayId m_bus_ports_id{kInvalidId};
+    ObjectId       m_template_id{kInvalidId};
 };
 
 }  // namespace db

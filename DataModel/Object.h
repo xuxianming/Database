@@ -23,7 +23,6 @@ public:
     ObjectId                 GetObjectId() const;
     bool                     IsDesignObject() const;
     bool                     IsLibertyObject() const;
-    virtual Object*          GetMgrObject() const;
 
 private:
     void SetType(DMObjectType type);
@@ -34,16 +33,6 @@ private:
     DMObjectType      m_type;
     ObjectId          m_obj_id{};
     ObjectNameArrayId m_name_id{};
-    ObjectNameArrayId m_pathname_id{};
-    /**
-     * mgr_obj_id is used to store the object ID in the memory manager, which
-     * can be used to quickly access the object in the memory manager. It is
-     * different from m_obj_id, which is the object ID used in the design. The
-     * memory manager may reuse the same object ID for different objects, so
-     * mgr_obj_id is used to distinguish between different objects in the memory
-     * manager.
-     */
-    ObjectId mgr_obj_id{};
 };
 }  // namespace db
 #endif

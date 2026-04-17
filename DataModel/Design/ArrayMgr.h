@@ -1,5 +1,5 @@
-#ifndef DATAMODEL_DESIGN_IDARRAYMGR_H_
-#define DATAMODEL_DESIGN_IDARRAYMGR_H_
+#ifndef DATAMODEL_DESIGN_ARRAYMGR_H_
+#define DATAMODEL_DESIGN_ARRAYMGR_H_
 
 #include <cstring>
 #include <iterator>
@@ -12,28 +12,18 @@
 
 namespace db {
 
-class IdArrayMgr;
+class ArrayMgr;
 class ArrayTableBase {
 public:
     virtual ~ArrayTableBase() = default;
 };
 
-/**
- * DynamicArrayTable supports variable-length arrays that can grow by appending
- new elements. It uses a linked-block structure to allow arrays to span multiple
- blocks if they exceed the block size. It also maintains a freelist for
- efficient reuse of destroyed arrays.
- * Features:
- * - Variable-length arrays
- * - Efficient memory management with linked-block structure
- * - Freelist for reuse of destroyed arrays
- */
 template <typename ValueT, typename IdType, int BLOCK_WIDTH = 16>
 class DynamicArrayTable : public ArrayTableBase {
     static_assert(std::is_integral<IdType>::value, "IdType must be integral");
     static_assert(BLOCK_WIDTH > 0 && BLOCK_WIDTH < sizeof(IdType) * 8,
                   "BLOCK_WIDTH must be between 1 and (sizeof(IdType)*8 - 1)");
-    friend class IdArrayMgr;
+    friend class ArrayMgr;
 
 public:
     static constexpr uint32_t FREELIST_THRESHOLD = 32;
@@ -44,10 +34,8 @@ public:
         using iterator_category = std::forward_iterator_tag;
         using value_type        = ValueT;
         using difference_type   = std::ptrdiff_t;
-        using pointer =
-            typename std::conditional<IsConst, const ValueT*, ValueT*>::type;
-        using reference =
-            typename std::conditional<IsConst, const ValueT&, ValueT&>::type;
+        using pointer           = typename std::conditional<IsConst, const ValueT*, ValueT*>::type;
+        using reference         = typename std::conditional<IsConst, const ValueT&, ValueT&>::type;
 
         BasicIterator()
             : table_(nullptr),
@@ -105,9 +93,7 @@ public:
                    block_index_ == other.block_index_;
         }
 
-        bool operator!=(const BasicIterator& other) const {
-            return !(*this == other);
-        }
+        bool operator!=(const BasicIterator& other) const { return !(*this == other); }
 
     private:
         void LoadCurrentBlock() {
@@ -158,13 +144,9 @@ public:
 
     Iterator begin(IdType array_id) { return Iterator(this, array_id); }
 
-    ConstIterator begin(IdType array_id) const {
-        return ConstIterator(this, array_id);
-    }
+    ConstIterator begin(IdType array_id) const { return ConstIterator(this, array_id); }
 
-    ConstIterator cbegin(IdType array_id) const {
-        return ConstIterator(this, array_id);
-    }
+    ConstIterator cbegin(IdType array_id) const { return ConstIterator(this, array_id); }
 
     Iterator end(IdType) { return Iterator(); }
 
@@ -176,8 +158,7 @@ public:
         return {begin(array_id), end(array_id)};
     }
 
-    std::pair<ConstIterator, ConstIterator> GetArrayIterator(
-        IdType array_id) const {
+    std::pair<ConstIterator, ConstIterator> GetArrayIterator(IdType array_id) const {
         return {cbegin(array_id), cend(array_id)};
     }
 
@@ -228,8 +209,7 @@ public:
 
     inline void AddBlock(ValueT* block) {
         if (data_.size() >= MAX_BLOCK_COUNT) {
-            throw std::runtime_error(
-                "DynamicArrayTable  has reached maximum block count");
+            throw std::runtime_error("DynamicArrayTable  has reached maximum block count");
         }
         data_.push_back(block);
         if (data_.size() == 1) {
@@ -275,9 +255,7 @@ public:
         return (block_id << INDEX_WIDTH_VALUE) | offset;
     }
 
-    inline IdType GetBlockIndex(IdType id) const {
-        return id >> INDEX_WIDTH_VALUE;
-    }
+    inline IdType GetBlockIndex(IdType id) const { return id >> INDEX_WIDTH_VALUE; }
 
     inline IdType GetOffset(IdType id) const { return id & INDEX_MASK; }
 
@@ -311,13 +289,11 @@ public:
     static constexpr IdType GetMaxBlockCount() { return MAX_BLOCK_COUNT; }
 
 protected:
-    static constexpr int BLOCK_WIDTH_VALUE = BLOCK_WIDTH;
-    static constexpr int INDEX_WIDTH_VALUE = sizeof(IdType) * 8 - BLOCK_WIDTH;
-    static constexpr IdType INDEX_MASK =
-        (static_cast<IdType>(1) << INDEX_WIDTH_VALUE) - 1;
-    static constexpr IdType MAX_OFFSET = INDEX_MASK;
-    static constexpr IdType MAX_BLOCK_COUNT =
-        (static_cast<IdType>(1) << BLOCK_WIDTH) - 1;
+    static constexpr int    BLOCK_WIDTH_VALUE = BLOCK_WIDTH;
+    static constexpr int    INDEX_WIDTH_VALUE = sizeof(IdType) * 8 - BLOCK_WIDTH;
+    static constexpr IdType INDEX_MASK        = (static_cast<IdType>(1) << INDEX_WIDTH_VALUE) - 1;
+    static constexpr IdType MAX_OFFSET        = INDEX_MASK;
+    static constexpr IdType MAX_BLOCK_COUNT   = (static_cast<IdType>(1) << BLOCK_WIDTH) - 1;
 
     struct SortIdByLength {
         SortIdByLength() = default;
@@ -330,10 +306,10 @@ protected:
         DynamicArrayTable* table = nullptr;
     };
 
-    std::vector<ValueT*> data_;
-    ValueT*              current_block_           = nullptr;
-    IdType               current_block_remainder_ = MAX_BLOCK_COUNT;
-    IdType               current_offset_          = 0;
+    std::vector<ValueT*>              data_;
+    ValueT*                           current_block_           = nullptr;
+    IdType                            current_block_remainder_ = MAX_BLOCK_COUNT;
+    IdType                            current_offset_          = 0;
     SortArray<IdType, SortIdByLength> free_list_;
 
     uint32_t                         min_array_length_ = 17;
@@ -359,16 +335,14 @@ DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::~DynamicArrayTable() {
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::FindSuitableFreeId(
-    IdType length) {
+IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::FindSuitableFreeId(IdType length) {
     if (free_list_.Empty() || length >= FREELIST_THRESHOLD) {
         return 0;
     }
 
-    auto it = std::lower_bound(free_list_.Begin(), free_list_.End(), length,
-                               [this](IdType id, IdType target_len) {
-                                   return GetLength(id) < target_len;
-                               });
+    auto it = std::lower_bound(
+        free_list_.Begin(), free_list_.End(), length,
+        [this](IdType id, IdType target_len) { return GetLength(id) < target_len; });
     if (it != free_list_.End() && GetLength(*it) == length) {
         IdType free_id = *it;
         free_list_.EraseAt(std::distance(free_list_.Begin(), it));
@@ -378,8 +352,7 @@ IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::FindSuitableFreeId(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocArray(
-    uint32_t length) {
+IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocArray(uint32_t length) {
     if (length < min_array_length_) {
         length = min_array_length_;
     }
@@ -412,10 +385,10 @@ IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocArray(
             "must equal MAX_BLOCK_COUNT - 1");
     }
 
-    IdType id            = MakeId(data_.size() - 1, current_offset_);
-    auto [block, offset] = GetBlockAndOffset(id);
-    block[offset]        = length;
-    block[offset + 1]    = 0;
+    IdType id                           = MakeId(data_.size() - 1, current_offset_);
+    auto [block, offset]                = GetBlockAndOffset(id);
+    block[offset]                       = length;
+    block[offset + 1]                   = 0;
     block[offset + MAX_BLOCK_COUNT - 1] = 0;
 
     current_block_remainder_ -= array_size;
@@ -424,8 +397,7 @@ IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocArray(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-void DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::DestroyArray(
-    IdType array_id) {
+void DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::DestroyArray(IdType array_id) {
     if (array_id == 0) return;
 
     auto [block, offset] = GetBlockAndOffset(array_id);
@@ -453,8 +425,7 @@ void DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::DestroyArray(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-void DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::AppendToArray(
-    IdType array_id, ValueT value) {
+void DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::AppendToArray(IdType array_id, ValueT value) {
     if (array_id == 0) return;
 
     IdType last_id       = GetLastBlockId(array_id);
@@ -483,8 +454,8 @@ void DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::AppendToArray(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-ValueT DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::GetElementAt(
-    IdType array_id, uint32_t index) const {
+ValueT DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::GetElementAt(IdType   array_id,
+                                                                    uint32_t index) const {
     if (array_id == 0) {
         throw std::out_of_range("Invalid array ID");
     }
@@ -504,8 +475,7 @@ ValueT DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::GetElementAt(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-uint32_t DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::GetArraySize(
-    IdType array_id) const {
+uint32_t DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::GetArraySize(IdType array_id) const {
     if (array_id == 0) return 0;
 
     uint32_t total_count = 0;
@@ -519,16 +489,14 @@ uint32_t DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::GetArraySize(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-uint32_t DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::GetArrayCapacity(
-    IdType array_id) const {
+uint32_t DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::GetArrayCapacity(IdType array_id) const {
     if (array_id == 0) return 0;
     auto [block, offset] = GetBlockAndOffset(array_id);
     return block[offset];
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-bool DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::IsEmpty(
-    IdType array_id) const {
+bool DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::IsEmpty(IdType array_id) const {
     if (array_id == 0) return true;
     auto [block, offset] = GetBlockAndOffset(array_id);
     return block[offset + 1] == 0;
@@ -547,8 +515,7 @@ void DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateNewBlock() {
         }
     }
 
-    current_block_ =
-        static_cast<ValueT*>(malloc(sizeof(ValueT) * MAX_BLOCK_COUNT));
+    current_block_ = static_cast<ValueT*>(malloc(sizeof(ValueT) * MAX_BLOCK_COUNT));
     if (current_block_ == nullptr) {
         throw std::runtime_error("Failed to allocate new block");
     }
@@ -566,8 +533,7 @@ void DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateNewBlock() {
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::GetLastBlockId(
-    IdType array_id) const {
+IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::GetLastBlockId(IdType array_id) const {
     auto it = last_block_cache_.find(array_id);
     if (it != last_block_cache_.end()) {
         auto [block, offset] = GetBlockAndOffset(it->second);
@@ -586,22 +552,19 @@ IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::GetLastBlockId(
         }
     } while (next_id != 0);
 
-    const_cast<std::map<IdType, IdType>&>(last_block_cache_)[array_id] =
-        current_id;
+    const_cast<std::map<IdType, IdType>&>(last_block_cache_)[array_id] = current_id;
     return current_id;
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-IdType
-DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::TryAllocateContiguousBlock(
-    uint32_t length) {
+IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::TryAllocateContiguousBlock(uint32_t length) {
     uint32_t array_size = length + 2;
 
     if (current_block_ != nullptr && current_block_remainder_ >= array_size) {
-        IdType id            = MakeId(data_.size() - 1, current_offset_);
-        auto [block, offset] = GetBlockAndOffset(id);
-        block[offset]        = length;
-        block[offset + 1]    = 0;
+        IdType id                           = MakeId(data_.size() - 1, current_offset_);
+        auto [block, offset]                = GetBlockAndOffset(id);
+        block[offset]                       = length;
+        block[offset + 1]                   = 0;
         block[offset + MAX_BLOCK_COUNT - 1] = 0;
 
         current_block_remainder_ -= array_size;
@@ -610,8 +573,7 @@ DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::TryAllocateContiguousBlock(
     }
 
     if (data_.size() < MAX_BLOCK_COUNT) {
-        ValueT* new_block =
-            static_cast<ValueT*>(malloc(sizeof(ValueT) * MAX_BLOCK_COUNT));
+        ValueT* new_block = static_cast<ValueT*>(malloc(sizeof(ValueT) * MAX_BLOCK_COUNT));
         if (new_block != nullptr) {
             memset(new_block, 0, sizeof(ValueT) * MAX_BLOCK_COUNT);
             new_block[MAX_BLOCK_COUNT - 1] = 0;
@@ -637,8 +599,7 @@ DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::TryAllocateContiguousBlock(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocLargeArray(
-    uint32_t length) {
+IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocLargeArray(uint32_t length) {
     if (length <= MAX_BLOCK_COUNT - 3) {
         IdType contiguous_id = TryAllocateContiguousBlock(length);
         if (contiguous_id != 0) {
@@ -649,18 +610,15 @@ IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocLargeArray(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-IdType
-DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocLargeArraySegmented(
-    uint32_t length) {
+IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocLargeArraySegmented(uint32_t length) {
     uint32_t elements_per_block = MAX_BLOCK_COUNT - 3;
     uint32_t remaining_elements = length;
     IdType   first_id           = 0;
     IdType   prev_id            = 0;
 
     while (remaining_elements > 0) {
-        uint32_t segment_elements =
-            std::min(remaining_elements, elements_per_block);
-        uint32_t segment_size = segment_elements + 2;
+        uint32_t segment_elements = std::min(remaining_elements, elements_per_block);
+        uint32_t segment_size     = segment_elements + 2;
 
         IdType current_id = 0;
 
@@ -669,8 +627,7 @@ DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocLargeArraySegmented(
         }
 
         if (current_id == 0) {
-            if (current_block_ == nullptr ||
-                current_block_remainder_ < segment_size + 1) {
+            if (current_block_ == nullptr || current_block_remainder_ < segment_size + 1) {
                 AllocateNewBlock();
             }
 
@@ -685,7 +642,7 @@ DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocLargeArraySegmented(
         block[offset + MAX_BLOCK_COUNT - 1] = 0;
 
         if (prev_id != 0) {
-            auto [prev_block, prev_offset] = GetBlockAndOffset(prev_id);
+            auto [prev_block, prev_offset]                = GetBlockAndOffset(prev_id);
             prev_block[prev_offset + MAX_BLOCK_COUNT - 1] = current_id;
         }
 
@@ -701,8 +658,7 @@ DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocLargeArraySegmented(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-void DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::FreeLargeArray(
-    IdType first_id) {
+void DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::FreeLargeArray(IdType first_id) {
     IdType current_id = first_id;
     while (current_id != 0) {
         auto [block, offset] = GetBlockAndOffset(current_id);
@@ -722,8 +678,7 @@ void DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::FreeLargeArray(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateNewBlockForArray(
-    uint32_t capacity) {
+IdType DynamicArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateNewBlockForArray(uint32_t capacity) {
     if (capacity < FREELIST_THRESHOLD) {
         IdType id = FindSuitableFreeId(capacity);
         if (id != 0) {
@@ -753,7 +708,7 @@ class FixedArrayTable : public ArrayTableBase {
     static_assert(std::is_integral<IdType>::value, "IdType must be integral");
     static_assert(BLOCK_WIDTH > 0 && BLOCK_WIDTH < sizeof(IdType) * 8,
                   "BLOCK_WIDTH must be between 1 and (sizeof(IdType)*8 - 1)");
-    friend class IdArrayMgr;
+    friend class ArrayMgr;
 
 public:
     static constexpr uint32_t FREELIST_THRESHOLD = 32;
@@ -765,15 +720,12 @@ public:
         using iterator_category = std::forward_iterator_tag;
         using value_type        = ValueT;
         using difference_type   = std::ptrdiff_t;
-        using pointer =
-            typename std::conditional<IsConst, const ValueT*, ValueT*>::type;
-        using reference =
-            typename std::conditional<IsConst, const ValueT&, ValueT&>::type;
+        using pointer           = typename std::conditional<IsConst, const ValueT*, ValueT*>::type;
+        using reference         = typename std::conditional<IsConst, const ValueT&, ValueT&>::type;
 
         BasicIterator() : data_(nullptr), index_(0), count_(0) {}
 
-        BasicIterator(ValueT* data, uint32_t count)
-            : data_(data), index_(0), count_(count) {}
+        BasicIterator(ValueT* data, uint32_t count) : data_(data), index_(0), count_(count) {}
 
         reference operator*() const { return data_[index_]; }
 
@@ -794,9 +746,7 @@ public:
             return data_ == other.data_ && index_ == other.index_;
         }
 
-        bool operator!=(const BasicIterator& other) const {
-            return !(*this == other);
-        }
+        bool operator!=(const BasicIterator& other) const { return !(*this == other); }
 
     private:
         ValueT*  data_;
@@ -879,9 +829,7 @@ public:
         return ConstIterator(block + offset + 2, block[offset + 1]);
     }
 
-    inline ConstIterator cbegin(IdType array_id) const {
-        return begin(array_id);
-    }
+    inline ConstIterator cbegin(IdType array_id) const { return begin(array_id); }
 
     inline Iterator end(IdType) { return Iterator(); }
 
@@ -893,8 +841,7 @@ public:
         return {begin(array_id), end(array_id)};
     }
 
-    inline std::pair<ConstIterator, ConstIterator> GetArrayIterator(
-        IdType array_id) const {
+    inline std::pair<ConstIterator, ConstIterator> GetArrayIterator(IdType array_id) const {
         return {cbegin(array_id), cend(array_id)};
     }
 
@@ -965,12 +912,10 @@ public:
     static constexpr IdType GetMaxBlockCount() { return MAX_BLOCK_COUNT; }
 
 protected:
-    static constexpr int INDEX_WIDTH_VALUE = sizeof(IdType) * 8 - BLOCK_WIDTH;
-    static constexpr IdType INDEX_MASK =
-        (static_cast<IdType>(1) << INDEX_WIDTH_VALUE) - 1;
-    static constexpr IdType MAX_OFFSET = INDEX_MASK;
-    static constexpr IdType MAX_BLOCK_COUNT =
-        (static_cast<IdType>(1) << BLOCK_WIDTH) - 1;
+    static constexpr int    INDEX_WIDTH_VALUE = sizeof(IdType) * 8 - BLOCK_WIDTH;
+    static constexpr IdType INDEX_MASK        = (static_cast<IdType>(1) << INDEX_WIDTH_VALUE) - 1;
+    static constexpr IdType MAX_OFFSET        = INDEX_MASK;
+    static constexpr IdType MAX_BLOCK_COUNT   = (static_cast<IdType>(1) << BLOCK_WIDTH) - 1;
 
     struct SortIdByLength {
         SortIdByLength() = default;
@@ -1014,16 +959,13 @@ protected:
         return (block_id << INDEX_WIDTH_VALUE) | offset;
     }
 
-    inline IdType GetBlockIndex(IdType id) const {
-        return id >> INDEX_WIDTH_VALUE;
-    }
+    inline IdType GetBlockIndex(IdType id) const { return id >> INDEX_WIDTH_VALUE; }
 
     inline IdType GetOffset(IdType id) const { return id & INDEX_MASK; }
 
     inline void AddBlock(ValueT* block) {
         if (data_.size() >= MAX_BLOCK_COUNT) {
-            throw std::runtime_error(
-                "FixedArrayTable has reached maximum block count");
+            throw std::runtime_error("FixedArrayTable has reached maximum block count");
         }
         data_.push_back(block);
         if (data_.size() == 1) {
@@ -1036,10 +978,10 @@ protected:
     IdType AllocateDedicatedBlock(uint32_t size);
 
 protected:
-    std::vector<ValueT*> data_;
-    ValueT*              current_block_           = nullptr;
-    IdType               current_block_remainder_ = MAX_BLOCK_COUNT;
-    IdType               current_offset_          = 0;
+    std::vector<ValueT*>              data_;
+    ValueT*                           current_block_           = nullptr;
+    IdType                            current_block_remainder_ = MAX_BLOCK_COUNT;
+    IdType                            current_offset_          = 0;
     SortArray<IdType, SortIdByLength> free_list_;
 };
 
@@ -1061,17 +1003,15 @@ FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::~FixedArrayTable() {
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-IdType FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::FindSuitableFreeId(
-    IdType length) {
+IdType FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::FindSuitableFreeId(IdType length) {
     if (free_list_.Empty()) {
         return 0;
     }
 
     // Find first free block with capacity >= length
-    auto it = std::lower_bound(free_list_.Begin(), free_list_.End(), length,
-                               [this](IdType id, IdType target_len) {
-                                   return GetArrayCapacity(id) < target_len;
-                               });
+    auto it = std::lower_bound(
+        free_list_.Begin(), free_list_.End(), length,
+        [this](IdType id, IdType target_len) { return GetArrayCapacity(id) < target_len; });
 
     if (it != free_list_.End()) {
         IdType free_id = *it;
@@ -1088,8 +1028,7 @@ void FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::AddToFreeList(IdType id) {
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
 void FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateNewBlock() {
-    current_block_ =
-        static_cast<ValueT*>(malloc(sizeof(ValueT) * MAX_BLOCK_COUNT));
+    current_block_ = static_cast<ValueT*>(malloc(sizeof(ValueT) * MAX_BLOCK_COUNT));
     if (current_block_ == nullptr) {
         throw std::runtime_error("Failed to allocate new block");
     }
@@ -1107,8 +1046,7 @@ void FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateNewBlock() {
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-IdType FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateFromCurrentBlock(
-    uint32_t size) {
+IdType FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateFromCurrentBlock(uint32_t size) {
     if (current_block_ == nullptr || current_block_remainder_ < size) {
         AllocateNewBlock();
     }
@@ -1120,14 +1058,12 @@ IdType FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateFromCurrentBlock(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-IdType FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateDedicatedBlock(
-    uint32_t size) {
+IdType FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateDedicatedBlock(uint32_t size) {
     if (data_.size() >= MAX_BLOCK_COUNT) {
         throw std::runtime_error("Maximum block count reached");
     }
 
-    ValueT* block =
-        static_cast<ValueT*>(malloc(sizeof(ValueT) * MAX_BLOCK_COUNT));
+    ValueT* block = static_cast<ValueT*>(malloc(sizeof(ValueT) * MAX_BLOCK_COUNT));
     if (block == nullptr) {
         return 0;
     }
@@ -1138,8 +1074,7 @@ IdType FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::AllocateDedicatedBlock(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-IdType FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocArray(
-    uint32_t length) {
+IdType FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocArray(uint32_t length) {
     if (length == 0) {
         return 0;
     }
@@ -1186,8 +1121,7 @@ IdType FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::MallocArray(
 }
 
 template <typename ValueT, typename IdType, int BLOCK_WIDTH>
-void FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::DestroyArray(
-    IdType array_id) {
+void FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::DestroyArray(IdType array_id) {
     if (array_id == 0) return;
 
     auto [block, offset] = GetBlockAndOffset(array_id);
@@ -1206,48 +1140,19 @@ void FixedArrayTable<ValueT, IdType, BLOCK_WIDTH>::DestroyArray(
     // fragmentation
 }
 
-// Explicit template instantiation
-template class FixedArrayTable<ObjectId, PinArrayId, 16>;
-
-class IdArrayMgr {
-private:
+class ArrayMgr {
+    friend class Design;
     ObjectId design_id_;
 
-public:
-    explicit IdArrayMgr(ObjectId design_id);
-    ~IdArrayMgr();
+private:
+    explicit ArrayMgr(ObjectId design_id);
+    ~ArrayMgr();
 
-    DynamicArrayTable<ObjectId, PinArrayId, 16>* GetNetPinsArray() {
-        return &net_pins_array_;
-    }
-    const DynamicArrayTable<ObjectId, PinArrayId, 16>* GetNetPinsArray() const {
-        return &net_pins_array_;
-    }
 
 private:
-    DynamicArrayTable<ObjectId, PinArrayId, 16> net_pins_array_;
-    std::vector<ArrayTableBase*>                arrays_;
-};
-
-class IdArrayMgrMaintainer {
-public:
-    static IdArrayMgrMaintainer& GetInstance() {
-        static IdArrayMgrMaintainer instance;
-        return instance;
-    }
-
-    IdArrayMgr* GetOrCreateIdArrayMgr(ObjectId design_id);
-    IdArrayMgr* CreateIdArrayMgr(ObjectId design_id);
-    IdArrayMgr* GetIdArrayMgr(ObjectId design_id) const;
-    void        DestroyIdArrayMgr(ObjectId design_id);
-    void        Clear();
-    void        Save(const std::string& dir) const;
-    void        Load(const std::string& dir);
-
-private:
-    std::map<ObjectId, IdArrayMgr*> id_array_mgrs_;
+    std::vector<ArrayTableBase*> arrays_;
 };
 
 }  // namespace db
 
-#endif  // DATAMODEL_DESIGN_IDARRAYMGR_H_
+#endif  // DATAMODEL_DESIGN_ARRAYMGR_H_

@@ -16,16 +16,6 @@
 
 namespace db {
 
-template <typename IdType, typename ValueType>
-class TableBase {
-public:
-    virtual ~TableBase()                      = default;
-    virtual IdType    Add(const ValueType& v) = 0;
-    virtual ValueType Get(IdType id) const    = 0;
-    virtual void      Destroy(IdType id)      = 0;
-    virtual void      Clear()                 = 0;
-};
-
 template <typename IdType>
 class StringTableBase {
 public:
@@ -419,6 +409,7 @@ private:
     const StringTableBase<IdType>* GetFixedTable(size_t len) const {
         return m_string_tables_[len].get();
     }
+    ObjectId                                              m_design_id{kInvalidId};
     std::vector<std::unique_ptr<StringTableBase<IdType>>> m_string_tables_;
 };
 

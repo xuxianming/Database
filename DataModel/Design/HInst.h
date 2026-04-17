@@ -10,10 +10,12 @@ public:
     HInst()           = default;
     ~HInst() override = default;
     size_t GetSize() const override;
-
+    Module* GetModule() const;
+    HInst*  GetHInst() const;
 private:
-    InstArrayId  m_insts_id;
-    HInstArrayId m_hinsts_id;
+    ObjectId     m_owner_id{kInvalidId};
+    InstArrayId  m_insts_id{kInvalidId};
+    HInstArrayId m_hinsts_id{kInvalidId};
 };
 
 }  // namespace db

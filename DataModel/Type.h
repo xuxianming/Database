@@ -11,6 +11,7 @@ constexpr uint64_t kInvalidId      = 0;
 constexpr uint8_t  ObjectIndexBits = 7;
 #ifdef _UINT_64_
 using ObjectId                     = uint64_t;
+ObjectId kInvalidId                = 0;
 using FullObjectId                 = uint64_t;
 using ObjectNameArrayId            = uint64_t;
 using constexpr uint8_t TypeOffset = 56;
@@ -18,6 +19,7 @@ constexpr uint8_t       IdWidth    = 56;
 constexpr ObjectId      IdMask     = 0x00FFFFFFFFFFFFFF;
 #else
 using ObjectId                = uint32_t;
+ObjectId kInvalidId           = 0;
 using FullObjectId            = uint64_t;
 using ObjectNameArrayId       = uint32_t;
 constexpr uint8_t  TypeOffset = 56;
