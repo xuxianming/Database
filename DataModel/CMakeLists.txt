@@ -4,5 +4,6 @@ target_sources(database PRIVATE ${CURRENT_SOURCES})
 
 add_subdirectory(Design)
 add_subdirectory(Liberty)
-add_subdirectory(Physical)
+add_subdirectory(Tech)
+
 

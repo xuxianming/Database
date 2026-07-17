@@ -2,11 +2,14 @@
 #define DATAMODEL_LIBERTY_LIBPORT_H_
 
 #include <cstdint>
-#include "DataModel/Liberty/LibertyObject.h"
-
+#include "DataModel/Liberty/LibCell.h"
+#include "DataModel/Liberty/Type.h"
+#include "DataModel/Port.h"
 namespace db {
 
-class LibPort : public LibertyObject {
+class LibPort : public Port {
+    friend class LibCellPortIterator;
+
 public:
     LibPort()           = default;
     ~LibPort() override = default;
@@ -116,8 +119,8 @@ public:
 
 private:
     ObjectId           m_owner_cell;
+    uint16_t           m_index_in_cell;
     LibPortCapsArrayId m_caps;
-    Direction          m_dir;
 };
 
 };  // namespace db

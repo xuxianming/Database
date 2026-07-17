@@ -1,13 +1,14 @@
 #include <cstdint>
 #ifndef DATABASE_LIBERTY_TYPE_H_
 #define DATABASE_LIBERTY_TYPE_H_
-
+#include "BasePlatfrom/IdArrayMgr.h"
+#include "BasePlatfrom/StringMgr.h"
+#include "DataModel/Type.h"
 namespace db {
-using LibPortArrayId     = uint16_t;
-using LibCellArrayId     = uint16_t;
-using FileArrayId        = uint16_t;
-using LibPortCapsArrayId = uint32_t;
+using LibertyStringMgr  = StringMgr<ObjectNameId, 127, 128, 1>;
+using LibertyIdArrayMgr = IdArrayMgr<ObjectId, ObjectId, 15>;
+using LibPortCapsArrayId   = uint32_t;
 
 }  // namespace db
 
-#endif
+#endif  // DATABASE_LIBERTY_TYPE_H_

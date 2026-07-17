@@ -1,8 +1,11 @@
 #include <cstdint>
 #ifndef DATAMODEL_DESIGN_TYPE_H_
 #define DATAMODEL_DESIGN_TYPE_H_
-
+#include "BasePlatfrom/IdArrayMgr.h"
+#include "BasePlatfrom/StringMgr.h"
+#include "DataModel/Type.h"
 namespace db {
+
 #ifdef _UINT_64_
 
 using PortArrayId     = uint32_t;
@@ -31,7 +34,8 @@ using PinBaseArrayId  = uint32_t;
 using BusNetArrayId   = uint32_t;
 using BusPortArrayId  = uint32_t;
 #endif
-
+using DesignStringMgr  = StringMgr<ObjectNameId, 127, 128, 1>;
+using DesignIdArrayMgr = IdArrayMgr<ObjectId, ObjectId, 15>;
 }  // namespace db
 
 #endif

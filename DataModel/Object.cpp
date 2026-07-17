@@ -14,20 +14,18 @@ FullObjectId Object::GetObjectFullId() const {
     return (static_cast<FullObjectId>(m_type) << TypeOffset) | m_obj_id;
 }
 
-ObjectId Object::GetObjectId() const { return m_obj_id; }
 
 void Object::SetObjectId(ObjectId idx) { m_obj_id = idx; }
 
 bool Object::IsDesignObject() const {
-    return m_type < DMObjectType::DESIGNOBJ_COUNT;
+    return m_type < DMObjectType::DESIGNOBJ_BOUNDARY;
 }
 
 bool Object::IsLibertyObject() const {
-    return m_type > DMObjectType::DESIGNOBJ_COUNT &&
-           m_type < DMObjectType::LIBOBJECT_COUNT;
+    return m_type > DMObjectType::DESIGNOBJ_BOUNDARY &&
+           m_type < DMObjectType::LIBOBJECT_BOUNDARY;
 }
 
-Object* Object::GetMgrObject() const { return nullptr; }
 
 size_t Object::GetSize() const { return sizeof(Object); }
 }  // namespace db

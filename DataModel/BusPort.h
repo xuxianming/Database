@@ -1,5 +1,5 @@
-#ifndef DATAMODEL_DESIGN_BUSPORT_H_
-#define DATAMODEL_DESIGN_BUSPORT_H_
+#ifndef DATAMODEL_BUSPORT_H_
+#define DATAMODEL_BUSPORT_H_
 
 #include "DataModel/Object.h"
 namespace db {
@@ -10,10 +10,12 @@ public:
     size_t GetSize() const override;
 
 private:
-    ObjectId        m_design_id;
+    ObjectId        m_owner_id;
     ObjectId        m_members_id;
     BusBitRangeType m_from_index;
     BusBitRangeType m_to_index;
+    // list of busports in owner
+    ObjectId m_next_id;
 };
 
 }  // namespace db

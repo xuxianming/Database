@@ -2,17 +2,19 @@
 #define DATAMODEL_LIBERTY_LIBERTYLIB_H_
 
 #include <cstdint>
-#include "DataModel/Liberty/LibertyObject.h"
+#include "DataModel/Object.h"
+#include "DataModel/Type.h"
+
 namespace db {
-class LibertyLib : public LibertyObject {
+class LibertyLib : public Object {
 public:
     LibertyLib()           = default;
     ~LibertyLib() override = default;
     size_t GetSize() const override;
 
 private:
-    LibCellArrayId m_libcells_id;
-    FileArrayId    m_file_name_id;
+    LibCellsArrayId m_libcells_id{kInvalidId};
+    char*           m_file_name{nullptr};
 };
 }  // namespace db
 

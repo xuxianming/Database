@@ -1,0 +1,2 @@
+
+namespace db {}  // namespace db

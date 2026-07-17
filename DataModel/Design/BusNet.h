@@ -13,6 +13,8 @@ private:
     ObjectId        m_members_id{kInvalidId};
     BusBitRangeType m_from_index{};
     BusBitRangeType m_to_index{};
+    // list of busnets in same module/hinst
+    ObjectId m_next_net_id{kInvalidId};
 };
 
 }  // namespace db
