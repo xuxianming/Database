@@ -24,6 +24,7 @@ public:
 private:
     BusBitId m_bit_id{InvalidBusBitId};
     ObjectId m_hnet_list_id{kInvalidId};
+    ObjectId m_pin_head_id{kInvalidId};
     ObjectId m_next_net_id{kInvalidId};
     ObjectId m_prev_net_id{kInvalidId};
 };

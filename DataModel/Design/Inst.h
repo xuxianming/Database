@@ -32,7 +32,7 @@ public:
     Design*              GetMasterDesign() const;
     void                 Connect(LogicPort port, Net* net);
     uint32_t             PinCount() const;
-    const InstPinsArray& GetPinsArray() const;
+    InstPinsArray GetPinsArray() const;
 
 private:
     static Inst* Create(Module* module, Inst* template_inst);

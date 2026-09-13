@@ -6,13 +6,13 @@
 namespace db {
 
 #ifdef _UINT_64_
-using ObjectId                     = uint64_t;
-ObjectId kInvalidId                = 0;
-using FullObjectId                 = uint64_t;
-using ObjectNameArrayId            = uint64_t;
-using constexpr uint8_t TypeOffset = 56;
-constexpr uint8_t       IdWidth    = 56;
-constexpr ObjectId      IdMask     = 0x00FFFFFFFFFFFFFF;
+using ObjectId                = uint64_t;
+constexpr ObjectId kInvalidId = 0;
+using FullObjectId            = uint64_t;
+using ObjectNameId            = uint64_t;
+constexpr uint8_t  TypeOffset = 56;
+constexpr uint8_t  IdWidth    = 56;
+constexpr ObjectId IdMask     = 0x00FFFFFFFFFFFFFF;
 #else
 using ObjectId                = uint32_t;
 constexpr ObjectId kInvalidId = 0;

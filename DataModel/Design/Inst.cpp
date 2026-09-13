@@ -53,7 +53,7 @@ uint32_t Inst::PinCount() const {
     return pins_array.Size();
 }
 
-const InstPinsArray& Inst::GetPinsArray() const {
+InstPinsArray Inst::GetPinsArray() const {
     if (m_pins_array_id == kInvalidId) {
         static const InstPinsArray empty_array;
         return empty_array;

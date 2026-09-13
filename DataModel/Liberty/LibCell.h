@@ -14,7 +14,7 @@ public:
     ~LibCell() override = default;
     size_t   GetSize() const override;
     uint32_t PortCount() const { return m_port_count; }
-    const LibCellPortsArray& GetPortArray() const;
+    LibCellPortsArray GetPortArray() const;
 private:
     ObjectId        m_owner_lib{kInvalidId};
     ObjectId        m_index_in_lib{kInvalidId};

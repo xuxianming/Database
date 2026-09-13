@@ -216,15 +216,14 @@ std::string ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::GetFileName() const {
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
 void ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::MakeBlock() {
-    auto  block_index = static_cast<uint32_t>(m_blocks.size());
-    auto* block       = new BlockType(block_index);
-    m_blocks.push_back(block);
-
+    auto block_index = static_cast<uint32_t>(m_blocks.size());
     if (block_index > GetMaxBlockCount()) {
         DB_LOG(ERROR) << "Exceeded maximum block count: " << GetMaxBlockCount() << "\n";
-        delete block;
         return;
     }
+
+    auto* block = new BlockType(block_index);
+    m_blocks.push_back(block);
 
     int start_idx = (block_index == 0) ? 1 : 0;
     for (int i = BLOCK_SIZE - 1; i >= start_idx; --i) {

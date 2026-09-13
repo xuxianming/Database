@@ -14,16 +14,16 @@ void Net::ConnectPin(Pin* pin) {
         old_net->DisConnectPin(pin);
     }
     pin->m_net_id      = GetObjectId();
-    pin->m_next_pin_id = pin_list_id;
+    pin->m_next_pin_id = m_pin_head_id;
     pin->m_prev_pin_id = kInvalidId;
 
-    if (pin_list_id != kInvalidId) {
-        Pin* old_head = DesignMemoryMgr::GetPin(pin_list_id);
+    if (m_pin_head_id != kInvalidId) {
+        Pin* old_head = DesignMemoryMgr::GetPin(m_pin_head_id);
         if (old_head) {
             old_head->m_prev_pin_id = pin->GetObjectId();
         }
     }
-    pin_list_id = pin->GetObjectId();
+    m_pin_head_id = pin->GetObjectId();
 }
 
 void Net::DisConnectPin(Pin* pin) {
@@ -46,8 +46,8 @@ void Net::DisConnectPin(Pin* pin) {
     if (next != nullptr) {
         next->m_prev_pin_id = pin->m_prev_pin_id;
     }
-    if (pin_list_id == pin->GetObjectId()) {
-        pin_list_id = pin->m_next_pin_id;
+    if (m_pin_head_id == pin->GetObjectId()) {
+        m_pin_head_id = pin->m_next_pin_id;
     }
     pin->m_net_id      = kInvalidId;
     pin->m_prev_pin_id = kInvalidId;

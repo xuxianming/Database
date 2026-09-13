@@ -20,6 +20,11 @@ template <typename IdType>
 class StringTableBase {
 public:
     virtual ~StringTableBase() = default;
+    virtual IdType         AddString(const std::string& str)      = 0;
+    virtual IdType         AddString(const std::string_view& str) = 0;
+    virtual std::string_view GetString(IdType id) const           = 0;
+    virtual void           DestroyString(IdType id)               = 0;
+    virtual void           Clear()                                = 0;
 };
 
 template <typename IdType, uint8_t MAX_FIX_LENGTH = 127, IdType MinElementCount = 128,
@@ -119,7 +124,7 @@ class StringMgr {
 
         ~FixLengthStringTable() override { Clear(); }
 
-        IdType AddString(const std::string& str) {
+        IdType AddString(const std::string& str) override {
             assert(str.length() == Len);
             if (!m_free_list_.empty()) {
                 auto [block_idx, offset] = m_free_list_.back();
@@ -144,7 +149,7 @@ class StringMgr {
             return id;
         }
 
-        IdType AddString(const std::string_view& str) {
+        IdType AddString(const std::string_view& str) override {
             assert(str.length() == Len);
             if (!m_free_list_.empty()) {
                 auto [block_idx, offset] = m_free_list_.back();
@@ -169,13 +174,13 @@ class StringMgr {
             return id;
         }
 
-        std::string_view GetString(IdType id) const {
+        std::string_view GetString(IdType id) const override {
             auto [block_idx, offset] = PARAMS.Decode(id);
             const char* block_data   = m_blocks_[block_idx];
             return std::string_view(block_data + offset * Len, Len);
         }
 
-        void DestroyString(IdType id) {
+        void DestroyString(IdType id) override {
             auto [block_idx, offset] = PARAMS.Decode(id);
             if (block_idx == m_cur_block_ && offset == m_cur_count_ - 1) {
                 m_cur_count_ -= 1;
@@ -184,7 +189,7 @@ class StringMgr {
             m_free_list_.emplace_back(block_idx, offset);
         }
 
-        void Clear() {
+        void Clear() override {
             for (auto& block : m_blocks_) {
                 free(block);
             }
@@ -211,7 +216,7 @@ class StringMgr {
 
         ~DynamicStringTable() override { Clear(); }
 
-        IdType AddString(const std::string& str) {
+        IdType AddString(const std::string& str) override {
             uint16_t len         = static_cast<uint16_t>(str.length());
             size_t   total_bytes = len + 2;
 
@@ -274,7 +279,7 @@ class StringMgr {
             m_cur_remainder_ -= total_bytes;
             return id;
         }
-        IdType AddString(const std::string_view& str) {
+        IdType AddString(const std::string_view& str) override {
             uint16_t len         = static_cast<uint16_t>(str.length());
             size_t   total_bytes = len + 2;
 
@@ -338,14 +343,14 @@ class StringMgr {
             return id;
         }
 
-        std::string_view GetString(IdType id) const {
+        std::string_view GetString(IdType id) const override {
             auto [block_idx, offset] = Decode(id);
             const char* block_data   = m_blocks_[block_idx];
             uint16_t    len          = *reinterpret_cast<const uint16_t*>(block_data + offset);
             return std::string_view(block_data + offset + 2, len);
         }
 
-        void DestroyString(IdType id) {
+        void DestroyString(IdType id) override {
             auto [block_idx, offset] = Decode(id);
             if (block_idx == m_cur_block_) {
                 uint16_t len = *reinterpret_cast<const uint16_t*>(m_blocks_[block_idx] + offset);
@@ -360,7 +365,7 @@ class StringMgr {
             m_free_by_len_[len].push_back(id);
         }
 
-        void Clear() {
+        void Clear() override {
             for (auto& block : m_blocks_) {
                 free(block);
             }

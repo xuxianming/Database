@@ -5,7 +5,7 @@
 namespace db {
 size_t LibCell::GetSize() const { return sizeof(LibCell); }
 
-const LibCellPortsArray& LibCell::GetPortArray() const {
+LibCellPortsArray LibCell::GetPortArray() const {
     static const LibCellPortsArray empty_array;
     if (m_ports == kInvalidId) {
         return empty_array;
