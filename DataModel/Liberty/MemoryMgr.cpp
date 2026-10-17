@@ -18,13 +18,24 @@ LibertyStringMgr*     LibertyMemoryMgr::m_string_mgr       = nullptr;
 LibertyIdArrayMgr*    LibertyMemoryMgr::m_idarray_mgr      = nullptr;
 std::vector<LibCell*> LibertyMemoryMgr::logic_libcells;
 LibertyLib*           LibertyMemoryMgr::CreateLibertyLib() {
+    EnsureManagers();
     auto  id  = lib_table.GetNextObjId();
     auto* lib = lib_table.Make();
     lib->SetObjectId(id);
     return lib;
 }
 
+void LibertyMemoryMgr::EnsureManagers() {
+    if (m_string_mgr == nullptr) {
+        m_string_mgr = new LibertyStringMgr();
+    }
+    if (m_idarray_mgr == nullptr) {
+        m_idarray_mgr = new LibertyIdArrayMgr();
+    }
+}
+
 LibCell* LibertyMemoryMgr::CreateLibCell() {
+    EnsureManagers();
     auto  id   = libcell_table.GetNextObjId();
     auto* cell = libcell_table.Make();
     cell->SetObjectId(id);
@@ -32,6 +43,7 @@ LibCell* LibertyMemoryMgr::CreateLibCell() {
 }
 
 LibPort* LibertyMemoryMgr::CreateLibPort() {
+    EnsureManagers();
     auto  id   = libport_table.GetNextObjId();
     auto* port = libport_table.Make();
     port->SetObjectId(id);
@@ -68,6 +80,18 @@ bool LibertyMemoryMgr::LoadAll(const std::string& db_pathdir) { return false; }
 
 void LibertyMemoryMgr::PrintStats() const {}
 
-void LibertyMemoryMgr::Clear() {}
+void LibertyMemoryMgr::Clear() {
+    delete m_string_mgr;
+    m_string_mgr = nullptr;
+    delete m_idarray_mgr;
+    m_idarray_mgr = nullptr;
+
+    lib_table.Clear();
+    libcell_table.Clear();
+    libport_table.Clear();
+
+    logic_libcells.clear();
+    default_liberty_id = kInvalidId;
+}
 
 }  // namespace db

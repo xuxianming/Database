@@ -1,4 +1,5 @@
 #include "DataModel/Design/HInst.h"
+#include "DataModel/Design/Design.h"
 #include "DataModel/Design/HNet.h"
 #include "DataModel/Design/HPin.h"
 #include "DataModel/Design/Inst.h"
@@ -6,10 +7,81 @@
 #include "DataModel/Design/ModulePort.h"
 #include "DataModel/Design/Net.h"
 #include "DataModel/Design/Pin.h"
+#include "Utils/Log.h"
 
 namespace db {
 
 size_t HInst::GetSize() const { return sizeof(HInst); }
+
+std::string_view HInst::GetName() const {
+    Design* design = GetMasterDesign();
+    if (design == nullptr || design->GetStringMgr() == nullptr) {
+        return {};
+    }
+    return design->GetStringMgr()->GetString(m_name_id);
+}
+
+// Synthesizes the hierarchical path on demand; flat paths are not interned.
+std::string HInst::PathName() {    std::string base;
+    if (HInst* upper = GetUpperHInst(); upper != nullptr) {
+        base = upper->PathName();
+    } else if (Module* module = GetModule(); module != nullptr) {
+        base = module->PathName();
+    }
+
+    const std::string name(GetName());
+    if (base.empty()) {
+        return name;
+    }
+    if (name.empty()) {
+        return base;
+    }
+    return base + "/" + name;
+}
+
+bool HInst::Rename(std::string_view name) {
+    Module* module = GetModule();
+    Design* design = module == nullptr ? nullptr : module->GetMasterDesign();
+    if (design == nullptr || design->GetStringMgr() == nullptr) {
+        return false;
+    }
+    DesignStringMgr*   mgr    = design->GetStringMgr();
+    const ObjectNameId old_id = m_name_id;
+    const ObjectNameId new_id = mgr->AddString(name);
+    m_name_id                 = new_id;
+    if (old_id != 0) {
+        mgr->ReleaseString(old_id);
+    }
+    InvalidateModuleNameIndex(module->GetObjectId());
+    return true;
+}
+
+HInst* HInst::Create(Module* module, Module* template_module) {
+    if (module == nullptr || template_module == nullptr) {
+        return nullptr;
+    }
+    return Create(module->GetObjectId(), template_module->GetObjectId());
+}
+
+HInst* HInst::Create(ObjectId module_id, ObjectId template_module_id) {
+    if (module_id == kInvalidId || template_module_id == kInvalidId) {
+        return nullptr;
+    }
+    HInst* hinst = DesignMemoryMgr::CreateHInst();
+    if (hinst == nullptr) {
+        return nullptr;
+    }
+    hinst->m_module_id   = module_id;
+    hinst->m_template_id = template_module_id;
+    return hinst;
+}
+
+HInst* HInst::Create(Module* module, OperatorType type) {
+    (void)module;
+    (void)type;
+    DB_LOG(WARNING) << "HInst::Create(Module*, OperatorType) is not implemented\n";
+    return nullptr;
+}
 
 Design* HInst::GetMasterDesign() const {
     Module* module = GetModule();

@@ -10,6 +10,51 @@
 namespace db {
 size_t Inst::GetSize() const { return sizeof(Inst); }
 
+std::string_view Inst::GetName() const {
+    Module* module = GetModule();
+    if (module == nullptr) {
+        return {};
+    }
+    Design* design = module->GetMasterDesign();
+    if (design == nullptr || design->GetStringMgr() == nullptr) {
+        return {};
+    }
+    return design->GetStringMgr()->GetString(m_name_id);
+}
+
+std::string Inst::PathName() {
+    const std::string name(GetName());
+    Module*           module = GetModule();
+    if (module == nullptr) {
+        return name;
+    }
+    const std::string base = module->PathName();
+    if (base.empty()) {
+        return name;
+    }
+    if (name.empty()) {
+        return base;
+    }
+    return base + "/" + name;
+}
+
+bool Inst::Rename(std::string_view name) {
+    Module* module = GetModule();
+    Design* design = module == nullptr ? nullptr : module->GetMasterDesign();
+    if (design == nullptr || design->GetStringMgr() == nullptr) {
+        return false;
+    }
+    DesignStringMgr*   mgr    = design->GetStringMgr();
+    const ObjectNameId old_id = m_name_id;
+    const ObjectNameId new_id = mgr->AddString(name);
+    m_name_id                 = new_id;
+    if (old_id != 0) {
+        mgr->ReleaseString(old_id);
+    }
+    InvalidateModuleNameIndex(module->GetObjectId());
+    return true;
+}
+
 Module* Inst::GetModule() const {
     if (m_module_id == kInvalidId) {
         return nullptr;

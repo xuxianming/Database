@@ -1,10 +1,14 @@
 #ifndef BASEPLATFROM_OBJECTTABLE_H_
 #define BASEPLATFROM_OBJECTTABLE_H_
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <new>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -21,6 +25,13 @@ constexpr IdType Pow2() {
     return 1u << N;
 }
 
+// Raw storage for object slots.
+//
+// The block owns memory only: it never constructs TYPE objects and never
+// destroys them. ObjectTable is responsible for placement-new / ~TYPE on the
+// slots that are actually live. This keeps the free-list link (stored in the
+// first sizeof(IdType) bytes of a free slot) from clobbering a vptr that a
+// destructor would later dispatch through.
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
 class TableBlock {
     static_assert(std::is_integral<IdType>::value, "IdType must be integral");
@@ -29,11 +40,29 @@ class TableBlock {
 
 public:
     explicit TableBlock(uint32_t block_idx);
+    // Intentionally does not destroy TYPE: storage is raw and ObjectTable owns
+    // the live-slot lifetimes.
     ~TableBlock() = default;
 
-    uint32_t    Index() const { return m_block_idx; }
-    TYPE*       GetObject(uint32_t idx) { return &m_objects[idx]; }
-    const TYPE* GetObject(uint32_t idx) const { return &m_objects[idx]; }
+    uint32_t Index() const { return m_block_idx; }
+
+    TYPE* GetObject(uint32_t idx) {
+        return std::launder(reinterpret_cast<TYPE*>(m_storage[idx]));
+    }
+    const TYPE* GetObject(uint32_t idx) const {
+        return std::launder(reinterpret_cast<const TYPE*>(m_storage[idx]));
+    }
+
+    void MarkLive(uint32_t idx) {
+        m_live[idx] = true;
+        m_free[idx] = false;
+    }
+    void MarkFree(uint32_t idx) {
+        m_live[idx] = false;
+        m_free[idx] = true;
+    }
+    bool IsLive(uint32_t idx) const { return m_live[idx]; }
+    bool IsFree(uint32_t idx) const { return m_free[idx]; }
 
     void WriteToFile(std::ofstream& file) const;
     void ReadFromFile(std::ifstream& file);
@@ -44,8 +73,10 @@ public:
     static constexpr uint32_t INDEX_MASK  = BLOCK_SIZE - 1;
 
 private:
-    TYPE     m_objects[BLOCK_SIZE];
-    uint32_t m_block_idx;
+    alignas(TYPE) std::byte m_storage[BLOCK_SIZE][sizeof(TYPE)]{};
+    std::array<bool, BLOCK_SIZE> m_live{};
+    std::array<bool, BLOCK_SIZE> m_free{};
+    uint32_t                     m_block_idx;
 };
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
@@ -56,12 +87,12 @@ TableBlock<TYPE, IdType, OBJECT_INDEX_BITS>::TableBlock(uint32_t block_idx)
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
 void TableBlock<TYPE, IdType, OBJECT_INDEX_BITS>::WriteToFile(std::ofstream& file) const {
-    file.write(reinterpret_cast<const char*>(m_objects), BLOCK_BYTES);
+    file.write(reinterpret_cast<const char*>(m_storage), BLOCK_BYTES);
 }
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
 void TableBlock<TYPE, IdType, OBJECT_INDEX_BITS>::ReadFromFile(std::ifstream& file) {
-    file.read(reinterpret_cast<char*>(m_objects), BLOCK_BYTES);
+    file.read(reinterpret_cast<char*>(m_storage), BLOCK_BYTES);
 }
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS = 7>
@@ -84,16 +115,25 @@ public:
         if (m_free == OBJECT_ID_NULL) {
             MakeBlock();
         }
-        IdType id     = m_free;
-        TYPE*  object = Pointer(id);
-        if (!object) {
-            DB_LOG(ERROR) << "Make() failed: invalid free ID " << id << "\n";
+        if (m_free == OBJECT_ID_NULL) {
+            DB_LOG(ERROR) << "Make() failed: no free object slots\n";
             return nullptr;
         }
 
-        auto* next_ptr = reinterpret_cast<IdType*>(object);
-        m_free         = *next_ptr;
-        object         = new (object) TYPE();
+        IdType id = m_free;
+        if (!IsValidSlot(id)) {
+            DB_LOG(ERROR) << "Make() failed: invalid free ID " << id << "\n";
+            return nullptr;
+        }
+        BlockType* block = m_blocks[GetBlockIndex(id)];
+        TYPE*      object = block->GetObject(GetObjectIndex(id));
+
+        IdType next = OBJECT_ID_NULL;
+        std::memcpy(&next, object, sizeof(IdType));
+        m_free = next;
+
+        object = new (object) TYPE();
+        block->MarkLive(GetObjectIndex(id));
 
         ++m_size;
         return object;
@@ -108,20 +148,33 @@ public:
             DB_LOG(ERROR) << "Destroy: object ID is null\n";
             return;
         }
-        object->~TYPE();
-        FreePush(id);
-        --m_size;
+        Destroy(id);
     }
     inline void Destroy(IdType id) {
         if (id == OBJECT_ID_NULL) {
+            DB_LOG(ERROR) << "Destroy: object ID is null\n";
             return;
         }
-        TYPE* object = Pointer(id);
-        if (object) {
-            object->~TYPE();
+        if (!IsValidSlot(id)) {
+            DB_LOG(ERROR) << "Destroy: invalid object ID " << id << "\n";
+            return;
         }
+
+        BlockType* block = m_blocks[GetBlockIndex(id)];
+        uint32_t   idx   = GetObjectIndex(id);
+        if (!block->IsLive(idx)) {
+            DB_LOG(WARNING) << "Destroy: object " << id
+                            << " is not live (double destroy?), ignored\n";
+            return;
+        }
+
+        block->GetObject(idx)->~TYPE();
+        block->MarkFree(idx);
         FreePush(id);
-        --m_size;
+
+        if (m_size > 0) {
+            --m_size;
+        }
     }
     inline TYPE* Pointer(IdType id) const {
         if (id == OBJECT_ID_NULL) {
@@ -165,6 +218,10 @@ private:
     void        FreePush(IdType id);
     std::string GetFileName() const;
 
+    bool IsValidSlot(IdType id) const {
+        return GetBlockIndex(id) < m_blocks.size() && GetObjectIndex(id) < BLOCK_SIZE;
+    }
+
     static constexpr uint32_t GetBlockIndex(IdType id) {
         return static_cast<uint32_t>(id >> OBJECT_INDEX_BITS);
     }
@@ -202,10 +259,7 @@ ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::ObjectTable(uint8_t type, const st
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
 ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::~ObjectTable() {
-    for (auto block : m_blocks) {
-        delete block;
-    }
-    m_blocks.clear();
+    Clear();
 }
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
@@ -225,23 +279,40 @@ void ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::MakeBlock() {
     auto* block = new BlockType(block_index);
     m_blocks.push_back(block);
 
-    int start_idx = (block_index == 0) ? 1 : 0;
-    for (int i = BLOCK_SIZE - 1; i >= start_idx; --i) {
-        IdType id = MakeId(block_index, i);
-        FreePush(id);
+    // Slot 0 of every block is reserved as the null terminator and is never
+    // handed out. Push the remaining slots so allocation starts at slot 1.
+    for (uint32_t i = BLOCK_SIZE; i-- > 1;) {
+        FreePush(MakeId(block_index, i));
     }
 }
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
 void ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::FreePush(IdType id) {
-    auto* next_ptr = reinterpret_cast<IdType*>(Pointer(id));
-    *next_ptr      = m_free;
-    m_free         = id;
+    if (!IsValidSlot(id)) {
+        DB_LOG(ERROR) << "FreePush: invalid object ID " << id << "\n";
+        return;
+    }
+
+    auto* block = m_blocks[GetBlockIndex(id)];
+    // The link occupies the first bytes of raw storage; use memcpy to avoid
+    // typed stores through storage that may already hold another object's bytes.
+    std::memcpy(block->GetObject(GetObjectIndex(id)), &m_free, sizeof(IdType));
+    block->MarkFree(GetObjectIndex(id));
+    m_free = id;
 }
 
 template <class TYPE, class IdType, uint8_t OBJECT_INDEX_BITS>
 void ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Clear() {
-    for (auto block : m_blocks) {
+    for (auto* block : m_blocks) {
+        if (block == nullptr) {
+            continue;
+        }
+        for (uint32_t i = 0; i < BLOCK_SIZE; ++i) {
+            if (block->IsLive(i)) {
+                block->GetObject(i)->~TYPE();
+                block->MarkFree(i);
+            }
+        }
         delete block;
     }
     m_blocks.clear();
@@ -305,17 +376,21 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Load() {
         return true;
     }
 
+    Clear();
+
     try {
         uint32_t magic;
         file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
         if (!file.good() || magic != 0x54424C4B) {
             DB_LOG(ERROR) << "Invalid magic number\n";
+            Clear();
             return false;
         }
 
         uint32_t version;
         file.read(reinterpret_cast<char*>(&version), sizeof(version));
         if (!file.good()) {
+            Clear();
             return false;
         }
 
@@ -323,6 +398,7 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Load() {
             DB_LOG(ERROR) << "Old version file not supported with bit-field "
                              "configuration. "
                           << "Please migrate data or use legacy code.\n";
+            Clear();
             return false;
         } else if (version == 3) {
             uint32_t saved_index_bits;
@@ -330,18 +406,21 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Load() {
             if (!file.good() || saved_index_bits != OBJECT_INDEX_BITS) {
                 DB_LOG(ERROR) << "Index bits mismatch: expected " << OBJECT_INDEX_BITS << ", got "
                               << saved_index_bits << "\n";
+                Clear();
                 return false;
             }
 
             uint32_t saved_id_size;
             file.read(reinterpret_cast<char*>(&saved_id_size), sizeof(saved_id_size));
-            if (saved_id_size != sizeof(IdType)) {
+            if (!file.good() || saved_id_size != sizeof(IdType)) {
                 DB_LOG(ERROR) << "IdType size mismatch: expected " << sizeof(IdType) << ", got "
                               << saved_id_size << "\n";
+                Clear();
                 return false;
             }
         } else {
             DB_LOG(ERROR) << "Unsupported version: " << version << "\n";
+            Clear();
             return false;
         }
 
@@ -350,6 +429,7 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Load() {
         if (!file.good() || type != m_type) {
             DB_LOG(ERROR) << "Type mismatch: expected " << (int)m_type << ", got " << (int)type
                           << "\n";
+            Clear();
             return false;
         }
 
@@ -358,19 +438,29 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Load() {
 
         uint32_t block_count;
         file.read(reinterpret_cast<char*>(&block_count), sizeof(block_count));
-        file.read(reinterpret_cast<char*>(&m_free), sizeof(m_free));
+
+        IdType free_head;
+        file.read(reinterpret_cast<char*>(&free_head), sizeof(free_head));
 
         if (!file.good()) {
+            Clear();
             return false;
         }
 
         if (block_count > GetMaxBlockCount()) {
             DB_LOG(ERROR) << "Block count " << block_count << " exceeds maximum "
                           << GetMaxBlockCount() << "\n";
+            Clear();
             return false;
         }
 
-        Clear();
+        if (count > static_cast<uint64_t>(GetMaxObjectCount())) {
+            DB_LOG(ERROR) << "Object count " << count << " exceeds maximum "
+                          << GetMaxObjectCount() << "\n";
+            Clear();
+            return false;
+        }
+
         m_blocks.reserve(block_count);
 
         for (uint32_t i = 0; i < block_count; ++i) {
@@ -378,13 +468,74 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Load() {
             block->ReadFromFile(file);
             if (!file.good()) {
                 DB_LOG(ERROR) << "Failed to read block " << i << "\n";
+                delete block;
                 Clear();
                 return false;
             }
             m_blocks.push_back(block);
         }
 
+        // Rebuild the free set from the saved free-list chain.
+        const uint64_t total_slots = static_cast<uint64_t>(block_count) * BLOCK_SIZE;
+        uint64_t       steps       = 0;
+        IdType         cur         = free_head;
+        while (cur != OBJECT_ID_NULL) {
+            uint32_t blk = GetBlockIndex(cur);
+            uint32_t idx = GetObjectIndex(cur);
+            if (blk >= block_count || idx >= BLOCK_SIZE) {
+                DB_LOG(ERROR) << "Corrupt free list: invalid ID " << cur << "\n";
+                Clear();
+                return false;
+            }
+
+            auto* block = m_blocks[blk];
+            if (block->IsFree(idx)) {
+                DB_LOG(ERROR) << "Corrupt free list: cycle at ID " << cur << "\n";
+                Clear();
+                return false;
+            }
+            block->MarkFree(idx);
+
+            IdType next = OBJECT_ID_NULL;
+            std::memcpy(&next, block->GetObject(idx), sizeof(IdType));
+            cur = next;
+
+            if (++steps > total_slots) {
+                DB_LOG(ERROR) << "Corrupt free list: too many entries\n";
+                Clear();
+                return false;
+            }
+        }
+
+        // Everything not in the free list is live. Re-construct the live slots
+        // (constructor parity for counters / invariants) and then restore the
+        // saved object bytes over the freshly constructed representation.
+        uint64_t live = 0;
+        for (uint32_t b = 0; b < block_count; ++b) {
+            auto* block = m_blocks[b];
+            for (uint32_t i = 1; i < BLOCK_SIZE; ++i) {
+                if (block->IsFree(i)) {
+                    continue;
+                }
+                TYPE* slot = block->GetObject(i);
+                alignas(TYPE) std::byte saved[sizeof(TYPE)];
+                std::memcpy(saved, slot, sizeof(TYPE));
+                new (slot) TYPE();
+                std::memcpy(slot, saved, sizeof(TYPE));
+                block->MarkLive(i);
+                ++live;
+            }
+        }
+
+        if (live != count) {
+            DB_LOG(ERROR) << "Object count mismatch: header says " << count << ", live slots "
+                          << live << "\n";
+            Clear();
+            return false;
+        }
+
         m_size = static_cast<size_t>(count);
+        m_free = free_head;
         file.close();
 
         DB_LOG(INFO) << "Loaded " << m_size << " objects from " << block_count
@@ -392,6 +543,7 @@ bool ObjectTable<TYPE, IdType, OBJECT_INDEX_BITS>::Load() {
         return true;
     } catch (const std::exception& e) {
         DB_LOG(ERROR) << "Exception during Load: " << e.what() << "\n";
+        Clear();
         return false;
     }
 }

@@ -4,10 +4,14 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
+#include <istream>
+#include <limits>
+#include <map>
+#include <ostream>
 #include <stdexcept>
 #include <type_traits>
-#include <unordered_map>
 #include <vector>
 
 namespace db {
@@ -15,18 +19,6 @@ namespace db {
 // ----------------------------------------------------------------------
 // Compile-time helpers
 // ----------------------------------------------------------------------
-template <uint32_t N>
-constexpr uint32_t ConstexprILog2() {
-    if constexpr (N == 0) {
-        return 0;  // or throw an error if you prefer
-    }
-    if constexpr (N == 1) {
-        return 1;
-    } else {
-        return 1 + ConstexprILog2<(N >> 1)>();
-    }
-}
-
 template <uint32_t N>
 constexpr bool IsPowerOfTwoMinusOne() {
     return (N & (N + 1)) == 0 && N != 0;
@@ -41,6 +33,10 @@ public:
     IdArray() = default;
     IdArray(ValueType* data, size_t capacity, IdType id)
         : data_(data), length_(0), capacity_(capacity), id_(id) {}
+    // Used when materialising an already-filled array (e.g. after a lookup):
+    // the element count is known up front.
+    IdArray(ValueType* data, size_t capacity, size_t length, IdType id)
+        : data_(data), length_(length), capacity_(capacity), id_(id) {}
 
     IdArray(const IdArray&)            = default;
     IdArray& operator=(const IdArray&) = default;
@@ -103,143 +99,43 @@ private:
 };
 
 // ----------------------------------------------------------------------
-// Base interface for all tables
-// ----------------------------------------------------------------------
-template <typename ValueType, typename IdType>
-class IArrayTable {
-public:
-    virtual ~IArrayTable()                                  = default;
-    virtual IdArray<ValueType, IdType> Allocate(size_t len) = 0;
-    virtual void                       Free(IdType id)      = 0;
-    virtual IdArray<ValueType, IdType> Get(IdType id) const = 0;
-    virtual void                       Clear()              = 0;
-};
-
-// ----------------------------------------------------------------------
-// Fixed-length table (each array has fixed size Len)
-// Memory layout: block of fixed-size slots, free list for slots
-// ----------------------------------------------------------------------
-template <typename ValueType, typename IdType, uint16_t Len>
-class FixLenArrayTable : public IArrayTable<ValueType, IdType> {
-    static_assert(Len > 0 && Len <= 65535, "Len out of range");
-
-    struct Slot {
-        ValueType data[Len];
-    };
-
-    static constexpr size_t   BLOCK_BYTES     = 64 * 1024;
-    static constexpr uint32_t SLOTS_PER_BLOCK = static_cast<uint32_t>(BLOCK_BYTES / sizeof(Slot));
-    static_assert(SLOTS_PER_BLOCK > 0, "Block too small");
-
-    static constexpr uint32_t OFFSET_BITS = 8;
-    static constexpr uint32_t BLOCK_BITS  = sizeof(IdType) * 8 - OFFSET_BITS;
-    static_assert(BLOCK_BITS >= 8, "IdType too small");
-    static_assert(SLOTS_PER_BLOCK <= (1u << OFFSET_BITS), "Too many slots per block");
-
-public:
-    FixLenArrayTable() {
-        blocks_.reserve(16);
-        free_list_.reserve(64);
-    }
-
-    ~FixLenArrayTable() override { Clear(); }
-
-    IdArray<ValueType, IdType> Allocate(size_t /*len*/) override {
-        if (!free_list_.empty()) {
-            auto [blk, off] = free_list_.back();
-            free_list_.pop_back();
-            Slot* slot = GetSlot(blk, off);
-            return IdArray<ValueType, IdType>(slot->data, Len, EncodeId(blk, off));
-        }
-        if (blocks_.empty() || cur_count_ >= SLOTS_PER_BLOCK) {
-            cur_block_ = static_cast<uint32_t>(blocks_.size());
-            char* mem  = static_cast<char*>(malloc(BLOCK_BYTES));
-            if (!mem) throw std::runtime_error("FixLenArrayTable: malloc failed");
-            blocks_.push_back(mem);
-            cur_count_ = 0;
-        }
-        Slot*  slot = GetSlot(cur_block_, cur_count_);
-        IdType id   = EncodeId(cur_block_, cur_count_);
-        ++cur_count_;
-        return IdArray<ValueType, IdType>(slot->data, Len, id);
-    }
-
-    void Free(IdType id) override {
-        auto [blk, off] = DecodeId(id);
-        if (blk == cur_block_ && off == cur_count_ - 1) {
-            --cur_count_;
-            return;
-        }
-        free_list_.emplace_back(blk, off);
-    }
-
-    IdArray<ValueType, IdType> Get(IdType id) const override {
-        auto [blk, off]  = DecodeId(id);
-        const Slot* slot = GetSlot(blk, off);
-        return IdArray<ValueType, IdType>(const_cast<ValueType*>(slot->data), Len, id);
-    }
-
-    void Clear() override {
-        for (auto blk : blocks_) free(blk);
-        blocks_.clear();
-        free_list_.clear();
-        cur_block_ = 0;
-        cur_count_ = 0;
-    }
-
-private:
-    IdType EncodeId(uint32_t blk, uint32_t off) const {
-        return (static_cast<IdType>(blk) << OFFSET_BITS) | off;
-    }
-    std::pair<uint32_t, uint32_t> DecodeId(IdType id) const {
-        uint32_t off = id & ((1u << OFFSET_BITS) - 1);
-        uint32_t blk = id >> OFFSET_BITS;
-        return {blk, off};
-    }
-
-    Slot* GetSlot(uint32_t blk, uint32_t off) {
-        char* block = blocks_[blk];
-        return reinterpret_cast<Slot*>(block + off * sizeof(Slot));
-    }
-    const Slot* GetSlot(uint32_t blk, uint32_t off) const {
-        const char* block = blocks_[blk];
-        return reinterpret_cast<const Slot*>(block + off * sizeof(Slot));
-    }
-
-    std::vector<char*>                         blocks_;
-    std::vector<std::pair<uint32_t, uint32_t>> free_list_;
-    uint32_t                                   cur_block_ = 0;
-    uint32_t                                   cur_count_ = 0;
-};
-
-// ----------------------------------------------------------------------
 // Dynamic-length table (each array can have arbitrary length up to MaxSize)
-// Each array stores: [length][data...] in a large block (size = MaxSize * sizeof(ValueType))
-// Blocks are allocated as needed, free arrays are indexed by their length
+// Each array stores: [length][data...] in a large block.
+// Blocks are allocated as needed; free arrays are indexed by their length.
 // ----------------------------------------------------------------------
 template <typename ValueType, typename IdType, uint32_t MinLen, uint32_t MaxSize = 65535>
-class DynLenArrayTable : public IArrayTable<ValueType, IdType> {
+class DynLenArrayTable {
     static_assert(MaxSize > 0, "MaxSize must be > 0");
     static_assert(MaxSize <= 0x7FFFFFFF, "MaxSize too large");
+    static_assert(sizeof(ValueType) >= sizeof(IdType), "ValueType cannot store the length word");
+    static_assert(std::is_trivially_copyable_v<ValueType>,
+                  "IdArrayMgr persistence requires trivially copyable values");
 
+    // One extra element of every block stores the length word of the array that
+    // starts there; MaxSize stays the maximum payload length.
     static constexpr size_t ELEMENT_SIZE   = sizeof(ValueType);
-    static constexpr size_t BLOCK_ELEMENTS = MaxSize;
+    static constexpr size_t BLOCK_ELEMENTS = static_cast<size_t>(MaxSize) + 1;
     static constexpr size_t BLOCK_BYTES    = BLOCK_ELEMENTS * ELEMENT_SIZE;
 
 public:
     DynLenArrayTable() {
         blocks_.reserve(16);
         data_.reserve(1024);
+        // Index 0 is reserved: ID 0 means "empty / invalid".
+        data_.push_back(nullptr);
+        free_flags_.push_back(false);
+        // Force the first Allocate() to reserve a fresh block.
+        cur_offset_ = BLOCK_ELEMENTS;
     }
 
-    ~DynLenArrayTable() override { Clear(); }
+    ~DynLenArrayTable() { Clear(); }
 
-    IdArray<ValueType, IdType> Allocate(size_t len) override {
+    IdArray<ValueType, IdType> Allocate(size_t len) {
         if (len == 0 || len > MaxSize) {
             throw std::runtime_error("DynLenArrayTable: invalid length");
         }
 
-        // Try to reuse a free array of exactly this length
+        // Reuse a free array of exactly this length.
         auto it = free_by_len_.find(len);
         if (it != free_by_len_.end() && !it->second.empty()) {
             IdType id = it->second.back();
@@ -248,13 +144,12 @@ public:
                 free_by_len_.erase(it);
             }
             ValueType* data = data_[id];
-            // data[0] stores the length (see layout below)
-            // The actual user data starts at data+1
-            *reinterpret_cast<IdType*>(data) = static_cast<IdType>(len);
+            WriteLength(data, static_cast<IdType>(len));
+            free_flags_[id] = false;
             return IdArray<ValueType, IdType>(data + 1, len, id);
         }
 
-        // Try to split a larger free block, +MinLen to avoid too much fragmentation
+        // Split a larger free block, keeping at least MinLen elements of slack.
         auto upper_it = free_by_len_.upper_bound(len + MinLen + 1);
         if (upper_it != free_by_len_.end() && !upper_it->second.empty()) {
             size_t free_len = upper_it->first;
@@ -264,29 +159,36 @@ public:
                 free_by_len_.erase(upper_it);
             }
 
-            ValueType* data                  = data_[id];
-            *reinterpret_cast<IdType*>(data) = static_cast<IdType>(len);
-            // -1 because we need 1 slot to store the length
-            size_t remain_len = free_len - len - 1;
-            // +1 because the new array also needs 1 slot to store its length
-            ValueType* remain_data                  = data + 1 + len;
-            *reinterpret_cast<IdType*>(remain_data) = static_cast<IdType>(remain_len);
-            IdType remain_id                        = static_cast<IdType>(data_.size());
+            ValueType* data = data_[id];
+            WriteLength(data, static_cast<IdType>(len));
+            free_flags_[id] = false;
+
+            // -1 because the remainder needs one element for its own length word.
+            size_t    remain_len  = free_len - len - 1;
+            ValueType* remain_data = data + 1 + len;
+            WriteLength(remain_data, static_cast<IdType>(remain_len));
+
+            IdType remain_id = static_cast<IdType>(data_.size());
             data_.push_back(remain_data);
+            free_flags_.push_back(true);
             free_by_len_[remain_len].push_back(remain_id);
             return IdArray<ValueType, IdType>(data + 1, len, id);
         }
 
-        // Allocate a new block if current block is exhausted, not need to check block_ is empty
-        // because cur_offset_ is initialized to BLOCK_ELEMENTS to force allocation on first call
+        // Reserve a new block when the current one cannot fit len + length word.
         if (cur_offset_ + len + 1 > BLOCK_ELEMENTS) {
-            int remain_len = BLOCK_ELEMENTS - cur_offset_;
+            size_t remain_len = BLOCK_ELEMENTS - cur_offset_;
             if (remain_len > MinLen) {
-                ValueType* remain_data                  = blocks_[cur_block_] + cur_offset_;
-                *reinterpret_cast<IdType*>(remain_data) = static_cast<IdType>(remain_len - 1);
-                IdType remain_id                        = static_cast<IdType>(data_.size());
-                data_.push_back(remain_data);
-                free_by_len_[remain_len - 1].push_back(remain_id);
+                ValueType* remain_data = blocks_[cur_block_] + cur_offset_;
+                // -1 because the remainder needs one element for its length word.
+                size_t free_len = remain_len - 1;
+                if (free_len > 0) {
+                    WriteLength(remain_data, static_cast<IdType>(free_len));
+                    IdType remain_id = static_cast<IdType>(data_.size());
+                    data_.push_back(remain_data);
+                    free_flags_.push_back(true);
+                    free_by_len_[free_len].push_back(remain_id);
+                }
             }
             ValueType* new_block = static_cast<ValueType*>(malloc(BLOCK_BYTES));
             if (!new_block) {
@@ -297,51 +199,213 @@ public:
             cur_offset_ = 0;
         }
 
-        ValueType* block                 = blocks_[cur_block_];
-        ValueType* data                  = block + cur_offset_;
-        *reinterpret_cast<IdType*>(data) = static_cast<IdType>(len);
-        IdType id                        = static_cast<IdType>(data_.size());
+        ValueType* block = blocks_[cur_block_];
+        ValueType* data  = block + cur_offset_;
+        WriteLength(data, static_cast<IdType>(len));
+        IdType id = static_cast<IdType>(data_.size());
         data_.push_back(data);
+        free_flags_.push_back(false);
         cur_offset_ += (len + 1);
         return IdArray<ValueType, IdType>(data + 1, len, id);
     }
 
-    void Free(IdType id) override {
-        assert(id < static_cast<IdType>(data_.size()));
+    void Free(IdType id) {
+        CheckId(id);
+        if (free_flags_[id]) {
+            throw std::runtime_error("DynLenArrayTable: double free");
+        }
         ValueType* data = data_[id];
-        IdType     len  = *reinterpret_cast<IdType*>(data);
+        IdType     len  = ReadLength(data);
+        free_flags_[id] = true;
         free_by_len_[len].push_back(id);
     }
 
-    IdArray<ValueType, IdType> Get(IdType id) const override {
-        assert(id < static_cast<IdType>(data_.size()));
+    IdArray<ValueType, IdType> Get(IdType id) const {
+        CheckId(id);
+        if (free_flags_[id]) {
+            throw std::out_of_range("DynLenArrayTable: array is freed");
+        }
         ValueType* data = data_[id];
-        IdType     len  = *reinterpret_cast<IdType*>(data);
-        return IdArray<ValueType, IdType>(data + 1, len, id);
+        IdType     len  = ReadLength(data);
+        return IdArray<ValueType, IdType>(data + 1, len, static_cast<size_t>(len), id);
     }
 
-    void Clear() override {
-        for (auto blk : blocks_) free(blk);
+    // Saves every slot (live and free) in ID order so that array IDs stay
+    // stable across a Save/Load roundtrip. Free slots keep their length so that
+    // Allocate() can reuse or split them after loading.
+    bool Save(std::ostream& out) const {
+        const uint32_t id_width    = static_cast<uint32_t>(sizeof(IdType));
+        const uint32_t value_width = static_cast<uint32_t>(sizeof(ValueType));
+        const uint64_t slot_count  = static_cast<uint64_t>(data_.size());
+
+        WritePod(out, kMagic);
+        WritePod(out, kVersion);
+        WritePod(out, id_width);
+        WritePod(out, value_width);
+        WritePod(out, slot_count);
+        if (!out) {
+            return false;
+        }
+
+        for (size_t id = 1; id < data_.size(); ++id) {
+            const uint8_t  live = free_flags_[id] ? 0 : 1;
+            const uint32_t len  = static_cast<uint32_t>(ReadLength(data_[id]));
+            WritePod(out, live);
+            WritePod(out, len);
+            if (live != 0) {
+                out.write(reinterpret_cast<const char*>(data_[id] + 1),
+                          static_cast<std::streamsize>(len) *
+                              static_cast<std::streamsize>(sizeof(ValueType)));
+                if (!out) {
+                    return false;
+                }
+            }
+        }
+        return static_cast<bool>(out);
+    }
+
+    // Restores a table written by Save(). IDs are reproduced exactly; free slots
+    // become reusable free chunks of their saved length. On any failure the
+    // table is left empty.
+    bool Load(std::istream& in) {
+        Clear();
+
+        uint32_t magic       = 0;
+        uint32_t version     = 0;
+        uint32_t id_width    = 0;
+        uint32_t value_width = 0;
+        uint64_t slot_count  = 0;
+
+        ReadPod(in, magic);
+        ReadPod(in, version);
+        ReadPod(in, id_width);
+        ReadPod(in, value_width);
+        ReadPod(in, slot_count);
+
+        if (!in || magic != kMagic || version != kVersion || id_width != sizeof(IdType) ||
+            value_width != sizeof(ValueType)) {
+            Clear();
+            return false;
+        }
+        if (slot_count < 1 || slot_count > kMaxSlotCount) {
+            Clear();
+            return false;
+        }
+        if (slot_count - 1 > static_cast<uint64_t>(std::numeric_limits<IdType>::max())) {
+            Clear();
+            return false;
+        }
+
+        for (uint64_t id = 1; id < slot_count; ++id) {
+            uint8_t  live = 0;
+            uint32_t len  = 0;
+            ReadPod(in, live);
+            ReadPod(in, len);
+            if (!in || live > 1 || len == 0 || len > MaxSize) {
+                Clear();
+                return false;
+            }
+
+            if (cur_offset_ + static_cast<size_t>(len) + 1 > BLOCK_ELEMENTS) {
+                ValueType* new_block = static_cast<ValueType*>(malloc(BLOCK_BYTES));
+                if (!new_block) {
+                    Clear();
+                    return false;
+                }
+                cur_block_ = blocks_.size();
+                blocks_.push_back(new_block);
+                cur_offset_ = 0;
+            }
+
+            ValueType* data = blocks_[cur_block_] + cur_offset_;
+            WriteLength(data, static_cast<IdType>(len));
+            if (live != 0) {
+                in.read(reinterpret_cast<char*>(data + 1),
+                        static_cast<std::streamsize>(len) *
+                            static_cast<std::streamsize>(sizeof(ValueType)));
+                if (!in) {
+                    Clear();
+                    return false;
+                }
+            }
+
+            data_.push_back(data);
+            free_flags_.push_back(live == 0);
+            if (live == 0) {
+                free_by_len_[len].push_back(static_cast<IdType>(id));
+            }
+            cur_offset_ += static_cast<size_t>(len) + 1;
+        }
+
+        if (static_cast<uint64_t>(data_.size()) != slot_count) {
+            Clear();
+            return false;
+        }
+        return true;
+    }
+
+    void Clear() {
+        for (auto* blk : blocks_) {
+            free(blk);
+        }
         blocks_.clear();
         data_.clear();
+        data_.push_back(nullptr);  // reserved index 0
+        free_flags_.clear();
+        free_flags_.push_back(false);
         free_by_len_.clear();
         cur_block_ = 0;
-        // init cur_offset_ to BLOCK_ELEMENTS to force allocation of a new block on first Allocate
-        // call
+        // Force the next Allocate() to reserve a fresh block.
         cur_offset_ = BLOCK_ELEMENTS;
     }
 
 private:
-    std::vector<ValueType*> blocks_;  // large blocks of size BLOCK_ELEMENTS
-    std::vector<ValueType*> data_;    // pointers to each allocated array (starts with length word)
-    std::unordered_map<size_t, std::vector<IdType>> free_by_len_;  // free arrays indexed by length
+    static constexpr uint32_t kMagic        = 0x49444152u;  // "IDAR"
+    static constexpr uint32_t kVersion      = 1u;
+    static constexpr uint64_t kMaxSlotCount = 100'000'000ull;
+
+    template <typename T>
+    static void WritePod(std::ostream& out, const T& value) {
+        out.write(reinterpret_cast<const char*>(&value), sizeof(T));
+    }
+
+    template <typename T>
+    static void ReadPod(std::istream& in, T& value) {
+        in.read(reinterpret_cast<char*>(&value), sizeof(T));
+    }
+
+    static void WriteLength(ValueType* data, IdType len) {
+        std::memcpy(data, &len, sizeof(IdType));
+    }
+
+    static IdType ReadLength(const ValueType* data) {
+        IdType len{};
+        std::memcpy(&len, data, sizeof(IdType));
+        return len;
+    }
+
+    void CheckId(IdType id) const {
+        if (id == 0 || static_cast<size_t>(id) >= data_.size()) {
+            throw std::out_of_range("DynLenArrayTable: invalid array id");
+        }
+    }
+
+    std::vector<ValueType*>                         blocks_;
+    std::vector<ValueType*>                         data_;
+    std::vector<bool>                               free_flags_;
+    std::map<size_t, std::vector<IdType>>           free_by_len_;
     size_t                                          cur_block_  = 0;
     size_t                                          cur_offset_ = 0;
 };
 
 // ----------------------------------------------------------------------
-// IdArrayMgr: dispatches to either fixed-length or dynamic table based on requested length
-// FixLen must be of the form 2^n - 1 (e.g., 1,3,7,15,31,63,127,...)
+// IdArrayMgr: owns a single dynamic-length table.
+//
+// The old fixed-length sub-tables (and the length-tag dispatch in the ID) were
+// removed: their IDs never encoded the table length, so Get/Free dispatched to
+// the wrong table, and FixLenArrayTable could not even be instantiated for
+// Len > 7. FixLen is kept only for source compatibility and as the minimum
+// split slack (MinLen) of the dynamic allocator.
 // ----------------------------------------------------------------------
 template <typename IdType = uint32_t, typename ValueType = uint32_t, uint16_t FixLen = 7>
 class IdArrayMgr {
@@ -349,71 +413,43 @@ class IdArrayMgr {
     static_assert(FixLen > 0, "FixLen must be positive");
     static_assert(IsPowerOfTwoMinusOne<FixLen>(), "FixLen must be of the form 2^n - 1");
 
-    static constexpr uint16_t LEN_BITS = ConstexprILog2<FixLen>();
-    static constexpr uint16_t ID_BITS  = sizeof(IdType) * 8;
-    static_assert(LEN_BITS < ID_BITS, "FixLen too large for IdType");
-
 public:
-    IdArrayMgr() {
-        tables_.resize(FixLen + 1, nullptr);
-        tables_[0] = new DynLenArrayTable<ValueType, IdType, FixLen + 1>();
-        InitFixedTables(std::make_index_sequence<FixLen>{});
-    }
+    IdArrayMgr() : m_table(new DynLenArrayTable<ValueType, IdType, FixLen + 1>()) {}
+    ~IdArrayMgr() { delete m_table; }
 
-    ~IdArrayMgr() { Clear(); }
+    IdArrayMgr(const IdArrayMgr&)            = delete;
+    IdArrayMgr& operator=(const IdArrayMgr&) = delete;
+    IdArrayMgr(IdArrayMgr&&)                 = delete;
+    IdArrayMgr& operator=(IdArrayMgr&&)      = delete;
 
     IdArray<ValueType, IdType> Allocate(size_t len) {
         if (len == 0) {
-            throw std::runtime_error("IdArrayMgr: cannot allocate zero-length array");
+            return IdArray<ValueType, IdType>();
         }
-        if (len <= FixLen) {
-            return tables_[len]->Allocate(len);
-        } else {
-            return tables_[0]->Allocate(len);
-        }
+        return m_table->Allocate(len);
     }
 
     void Free(IdType id) {
-        uint16_t len = GetLenFromId(id);
-        if (len <= FixLen) {
-            tables_[len]->Free(id);
-        } else {
-            tables_[0]->Free(id);
+        if (id == 0) {
+            return;
         }
+        m_table->Free(id);
     }
 
     IdArray<ValueType, IdType> Get(IdType id) const {
-        uint16_t len = GetLenFromId(id);
-        if (len <= FixLen) {
-            return tables_[len]->Get(id);
-        } else {
-            return tables_[0]->Get(id);
+        if (id == 0) {
+            return IdArray<ValueType, IdType>();
         }
+        return m_table->Get(id);
     }
 
-    void Clear() {
-        for (auto tbl : tables_) delete tbl;
-        tables_.clear();
-    }
+    void Clear() { m_table->Clear(); }
+
+    bool Save(std::ostream& out) const { return m_table->Save(out); }
+    bool Load(std::istream& in) { return m_table->Load(in); }
 
 private:
-    static uint16_t GetLenFromId(IdType id) {
-        constexpr uint16_t shift = ID_BITS - LEN_BITS;
-        return static_cast<uint16_t>((id >> shift) & ((1u << LEN_BITS) - 1));
-    }
-
-    template <size_t... Is>
-    void InitFixedTables(std::index_sequence<Is...>) {
-        (CreateFixedTable<Is + 1>(), ...);
-    }
-
-    template <uint16_t Len>
-    void CreateFixedTable() {
-        static_assert(Len <= FixLen, "Internal error");
-        tables_[Len] = new FixLenArrayTable<ValueType, IdType, Len>();
-    }
-
-    std::vector<IArrayTable<ValueType, IdType>*> tables_;
+    DynLenArrayTable<ValueType, IdType, FixLen + 1>* m_table;
 };
 
 }  // namespace db

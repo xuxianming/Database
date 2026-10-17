@@ -7,6 +7,8 @@ namespace db {
 class Module;
 
 class Design : public Object {
+    friend class DesignMemoryMgr;
+
 public:
     Design()           = default;
     ~Design() override = default;
@@ -20,8 +22,9 @@ public:
     Module*        CreateModule(const std::string& name = "");
     Module*        CreateModule(OperatorType type, const std::string& name = "");
 
-    DesignStringMgr*  GetStringMgr() { return m_string_mgr; }
-    DesignIdArrayMgr* GetIdArrayMgr() { return m_idarray_mgr; }
+    DesignStringMgr*       GetStringMgr() { return m_string_mgr; }
+    const DesignStringMgr* GetStringMgr() const { return m_string_mgr; }
+    DesignIdArrayMgr*      GetIdArrayMgr() { return m_idarray_mgr; }
 
 
 private:

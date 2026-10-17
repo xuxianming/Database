@@ -24,6 +24,9 @@ public:
     HInst()           = default;
     ~HInst() override = default;
     size_t  GetSize() const override;
+    std::string_view GetName() const override;
+    std::string PathName() override;
+    bool        Rename(std::string_view name);
     Design* GetMasterDesign() const;
     Module* GetModule() const;
     HInst*  GetUpperHInst() const;
@@ -44,7 +47,7 @@ private:
     ObjectId     m_hpin_head_id{kInvalidId};
     ObjectId     m_next_hinst_id{kInvalidId};
     ObjectNameId m_path_name_id{kInvalidId};
-    uint32_t     m_unfold : 1;
+    uint32_t     m_unfold : 1 {0};
 };
 
 class HInstHInstIterator : public Iterator<HInst> {

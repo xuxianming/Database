@@ -15,12 +15,16 @@ public:
     size_t   GetSize() const override;
     uint32_t PortCount() const { return m_port_count; }
     LibCellPortsArray GetPortArray() const;
+    void     SetPorts(LibPortsArrayId ports, uint32_t count) {
+        m_ports      = ports;
+        m_port_count = count;
+    }
 private:
     ObjectId        m_owner_lib{kInvalidId};
     ObjectId        m_index_in_lib{kInvalidId};
     LogicType       m_function_type{LogicType::COUNT};
     uint32_t        m_port_count{0};
-    LibPortsArrayId m_ports;
+    LibPortsArrayId m_ports{kInvalidId};
 };
 
 class LibCellPortIterator : public Iterator<LibPort> {

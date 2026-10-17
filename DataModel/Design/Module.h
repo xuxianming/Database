@@ -1,5 +1,6 @@
 #ifndef DATAMODEL_DESIGN_MODULE_H_
 #define DATAMODEL_DESIGN_MODULE_H_
+#include <string_view>
 #include <unordered_set>
 #include "DataModel/Design/Type.h"
 #include "DataModel/Enums.h"
@@ -32,6 +33,8 @@ private:
 public:
     Module();
     ~Module();
+    std::string_view GetName() const override;
+    std::string      PathName() override;
 
     Design*  GetMasterDesign() const;
     Module*  GetTopModule() const;
@@ -45,9 +48,23 @@ public:
     HInst*   CreateHInst(ObjectId template_module_id, const std::string& name = "");
     HInst*   CreateHInst(OperatorType type, const std::string& name = "");
     Module*  Clone(const std::string& name = "") const;
+    bool     Rename(std::string_view name);
+
+    // Name -> object lookup within this module. The index is built lazily from
+    // the module's Inst/HInst lists and invalidated on mutation. Duplicate
+    // names resolve to the object most recently linked (list head).
+    Inst*  FindInst(std::string_view name) const;
+    HInst* FindHInst(std::string_view name) const;
 
 private:
+    friend class DesignMemoryMgr;
+
     static size_t ComputeHash(const std::string& name) { return std::hash<std::string>{}(name); }
+
+    void LinkInst(Inst* inst);
+    void LinkHInst(HInst* hinst);
+    void UnlinkInst(Inst* inst);
+    void UnlinkHInst(HInst* hinst);
 
 private:
     ObjectId     m_design_id{kInvalidId};
@@ -66,6 +83,11 @@ private:
     uint32_t     m_clone_count : 15;
     OperatorType m_operator_type{OperatorType::COUNT};
 };
+
+// Side index helpers (defined in Module.cpp). The index is a separate static
+// map so the raw ObjectTable layout of Module stays unchanged.
+void InvalidateModuleNameIndex(ObjectId module_id);
+void ClearModuleNameIndexes();
 
 class ModuleInstIterator : public Iterator<Inst> {
 public:

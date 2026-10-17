@@ -26,6 +26,9 @@ public:
     Inst()           = default;
     ~Inst() override = default;
     size_t               GetSize() const override;
+    std::string_view     GetName() const override;
+    std::string          PathName() override;
+    bool                 Rename(std::string_view name);
     Module*              GetModule() const;
     HInst*               GetHInst() const;
     LibCell*             GetLibCell() const;

@@ -27,6 +27,10 @@ public:
 
     static LibertyIdArrayMgr* GetIdArrayMgr() { return m_idarray_mgr; }
     static LibertyStringMgr*  GetStringMgr() { return m_string_mgr; }
+
+    // Idempotently allocates the Liberty string/id-array managers.
+    static void EnsureManagers();
+
     void                      SetDefaultLibertyLib(ObjectId libertyId);
     LibertyLib*               GetDefaultLibertyLib();
 

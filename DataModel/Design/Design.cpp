@@ -37,6 +37,9 @@ Module* Design::CreateModule(const std::string& name) {
         return nullptr;
     }
     module->m_design_id = GetObjectId();
+    if (DesignStringMgr* mgr = GetStringMgr(); mgr != nullptr) {
+        module->m_name_id = mgr->AddString(name);
+    }
     return module;
 }
 Module* Design::CreateModule(OperatorType type, const std::string& name) {
@@ -46,6 +49,9 @@ Module* Design::CreateModule(OperatorType type, const std::string& name) {
     }
     module->m_design_id     = GetObjectId();
     module->m_operator_type = type;
+    if (DesignStringMgr* mgr = GetStringMgr(); mgr != nullptr) {
+        module->m_name_id = mgr->AddString(name);
+    }
     return module;
 }
 }  // namespace db

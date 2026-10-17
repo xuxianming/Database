@@ -1,6 +1,5 @@
 #ifndef DATABASE_OBJECT_H_
 #define DATABASE_OBJECT_H_
-#include <cstdint>
 #include <string>
 #include "DataModel/Design/MemoryMgr.h"
 #include "DataModel/Enums.h"
