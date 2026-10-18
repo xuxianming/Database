@@ -6,6 +6,7 @@ setlocal enabledelayedexpansion
 set BUILD_DIR=build
 set INSTALL_PREFIX=C:\Program Files\MyProject
 set BUILD_TYPE=Release
+set BUILD_TESTS=0
 set SKIP_INSTALL=0
 set CLEAN_ONLY=0
 set JOBS=%NUMBER_OF_PROCESSORS%
@@ -34,6 +35,11 @@ if "%1"=="-p" (
     goto :parse_args
 )
 if "%1"=="-t" (
+    set BUILD_TESTS=1
+    shift
+    goto :parse_args
+)
+if "%1"=="-T" (
     set BUILD_TYPE=%2
     shift
     shift
@@ -65,7 +71,8 @@ echo   -c                Clean, build but do NOT install
 echo   -h                Show this help
 echo   -b ^<dir^>          Build directory
 echo   -p ^<prefix^>       Install prefix
-echo   -t ^<type^>         Build type: Debug/Release
+echo   -t                 Build tests (default: off)
+echo   -T ^<type^>         Build type: Debug/Release
 echo   -j ^<jobs^>         Parallel jobs
 echo   -g ^<generator^>    vs2022/vs2019/ninja/mingw/auto
 exit /b 0
@@ -116,8 +123,11 @@ if "%CLEAN_ONLY%"=="1" (
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 cd "%BUILD_DIR%"
 
+set CMAKE_TEST_FLAG=-DDB_BUILD_TESTS=OFF
+if "%BUILD_TESTS%"=="1" set CMAKE_TEST_FLAG=-DDB_BUILD_TESTS=ON
+
 echo Configuring...
-cmake .. %CMAKE_GENERATOR% -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%"
+cmake .. %CMAKE_GENERATOR% -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" %CMAKE_TEST_FLAG%
 if errorlevel 1 (
     cd ..
     exit /b 1
@@ -134,6 +144,12 @@ if "%GENERATOR%"=="mingw" (
 if errorlevel 1 (
     cd ..
     exit /b 1
+)
+
+if "%BUILD_TESTS%"=="1" (
+    echo Tests built. Run: ctest --output-on-failure
+) else (
+    echo Tests skipped ^(pass -t to build them^).
 )
 
 if "%SKIP_INSTALL%"=="0" (

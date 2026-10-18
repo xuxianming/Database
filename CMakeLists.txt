@@ -1,71 +1,77 @@
 cmake_minimum_required(VERSION 3.20)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 project(Database VERSION 1.0.0 LANGUAGES CXX)
-enable_testing()
+
+option(DB_BUILD_TOOL "Build the my_tool demo" ON)
+option(DB_BUILD_TESTS "Build the GoogleTest test suite" OFF)
+
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-add_library(database SHARED)
-target_include_directories(database PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR})
-message("CMAKE_CURRENT_SOURCE_DIR:" ${CMAKE_CURRENT_SOURCE_DIR})
-add_subdirectory(BasePlatfrom)
-add_subdirectory(Common)
-add_subdirectory(DataModel)
-add_subdirectory(Utils)
 
-find_package(slang REQUIRED)
-add_executable(my_tool main.cc)
-target_link_libraries(my_tool PRIVATE slang::slang)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
-add_executable(string_mgr_test test/string_mgr_test.cc)
-target_link_libraries(string_mgr_test PRIVATE database)
-add_test(NAME string_mgr_test COMMAND string_mgr_test)
+file(GLOB_RECURSE DATABASE_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/BasePlatfrom/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Common/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/DataModel/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/*.cpp"
+)
 
-add_executable(design_name_test test/design_name_test.cc)
-target_link_libraries(design_name_test PRIVATE database)
-# libdatabase carries pre-existing unresolved symbols (HNet::Connect*/Disconnect*,
-# HInst::Create); none are used by this name-only test, so allow them at link time.
-target_link_options(design_name_test PRIVATE "LINKER:--allow-shlib-undefined")
-add_test(NAME design_name_test COMMAND design_name_test)
+add_library(database SHARED ${DATABASE_SOURCES})
+add_library(Database::database ALIAS database)
+target_include_directories(database PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+target_compile_features(database PUBLIC cxx_std_20)
+set_target_properties(database PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+)
 
-add_executable(object_table_test test/object_table_test.cc)
-target_link_libraries(object_table_test PRIVATE database)
-target_link_options(object_table_test PRIVATE "LINKER:--allow-shlib-undefined")
-add_test(NAME object_table_test COMMAND object_table_test)
+install(TARGETS database
+    EXPORT DatabaseTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(EXPORT DatabaseTargets
+    FILE DatabaseTargets.cmake
+    NAMESPACE Database::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Database
+)
 
-add_executable(id_array_mgr_test test/id_array_mgr_test.cc)
-target_link_libraries(id_array_mgr_test PRIVATE database)
-target_link_options(id_array_mgr_test PRIVATE "LINKER:--allow-shlib-undefined")
-add_test(NAME id_array_mgr_test COMMAND id_array_mgr_test)
+configure_package_config_file(
+    cmake/DatabaseConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/DatabaseConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Database
+)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/DatabaseConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/DatabaseConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/DatabaseConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Database
+)
 
-add_executable(inst_create_test test/inst_create_test.cc)
-target_link_libraries(inst_create_test PRIVATE database)
-target_link_options(inst_create_test PRIVATE "LINKER:--allow-shlib-undefined")
-add_test(NAME inst_create_test COMMAND inst_create_test)
+if(DB_BUILD_TOOL)
+    find_package(slang REQUIRED)
+    add_executable(my_tool src/main.cc)
+    target_link_libraries(my_tool PRIVATE slang::slang)
+endif()
 
-add_executable(path_name_test test/path_name_test.cc)
-target_link_libraries(path_name_test PRIVATE database)
-target_link_options(path_name_test PRIVATE "LINKER:--allow-shlib-undefined")
-add_test(NAME path_name_test COMMAND path_name_test)
-
-add_executable(liberty_ports_test test/liberty_ports_test.cc)
-target_link_libraries(liberty_ports_test PRIVATE database)
-target_link_options(liberty_ports_test PRIVATE "LINKER:--allow-shlib-undefined")
-add_test(NAME liberty_ports_test COMMAND liberty_ports_test)
-
-add_executable(name_index_test test/name_index_test.cc)
-target_link_libraries(name_index_test PRIVATE database)
-target_link_options(name_index_test PRIVATE "LINKER:--allow-shlib-undefined")
-add_test(NAME name_index_test COMMAND name_index_test)
-
-add_executable(eco_test test/eco_test.cc)
-target_link_libraries(eco_test PRIVATE database)
-target_link_options(eco_test PRIVATE "LINKER:--allow-shlib-undefined")
-add_test(NAME eco_test COMMAND eco_test)
-
-add_executable(persistence_roundtrip_test test/persistence_roundtrip_test.cc)
-target_link_libraries(persistence_roundtrip_test PRIVATE database)
-target_link_options(persistence_roundtrip_test PRIVATE "LINKER:--allow-shlib-undefined")
-add_test(NAME persistence_roundtrip_test COMMAND persistence_roundtrip_test)
+if(DB_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(test)
+endif()

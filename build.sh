@@ -8,6 +8,7 @@ INSTALL_PREFIX="/usr/local"
 BUILD_TYPE="Release"
 JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 SKIP_INSTALL=1   # 0=安装, 1=不安装
+BUILD_TESTS=0    # 1=构建 gtest 测试
 
 # 显示帮助信息
 usage() {
@@ -19,26 +20,29 @@ Options:
   -h                Show this help message
   -b <dir>          Build directory (default: build)
   -p <prefix>       Install prefix (default: /usr/local)
-  -t <type>         Build type: Debug/Release (default: Release)
+  -t                Build tests (default: off)
+  -T <type>         Build type: Debug/Release (default: Release)
   -j <jobs>         Number of parallel jobs (default: auto)
 
 Examples:
   $0                Build and install
   $0 -c             Clean, build, but skip installation
-  $0 -b build_release -t Release
+  $0 -c -t          Clean, build library + tests
+  $0 -b build_release -T Release
 EOF
     exit 0
 }
 
 # 解析命令行参数
-while getopts "chb:p:t:j:" opt; do
+while getopts "chb:p:tT:j:" opt; do
     case $opt in
         c) CLEAN_ONLY=0    # 注意：我们不是只清理，而是清理后继续
            SKIP_INSTALL=1 ;;
         h) usage ;;
         b) BUILD_DIR="$OPTARG" ;;
         p) INSTALL_PREFIX="$OPTARG" ;;
-        t) BUILD_TYPE="$OPTARG" ;;
+        t) BUILD_TESTS=1 ;;
+        T) BUILD_TYPE="$OPTARG" ;;
         j) JOBS="$OPTARG" ;;
         *) usage ;;
     esac
@@ -57,6 +61,7 @@ echo "=== Build configuration ==="
 echo "Build directory: $BUILD_DIR"
 echo "Install prefix: $INSTALL_PREFIX"
 echo "Build type: $BUILD_TYPE"
+echo "Build tests: $([ "$BUILD_TESTS" -eq 1 ] && echo ON || echo OFF)"
 echo "Parallel jobs: $JOBS"
 if [ $SKIP_INSTALL -eq 1 ]; then
     echo "Installation: SKIPPED"
@@ -70,17 +75,26 @@ cd "$BUILD_DIR"
 
 # CMake 配置
 echo "Configuring with CMake..."
+if [ "$BUILD_TESTS" -eq 1 ]; then
+    TEST_FLAG=ON
+else
+    TEST_FLAG=OFF
+fi
 cmake .. \
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DDB_BUILD_TESTS="$TEST_FLAG" \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 # 编译
 echo "Building with $JOBS jobs..."
 cmake --build . --parallel "$JOBS"
 
-# 可选：运行测试
-# ctest --output-on-failure
+if [ "$BUILD_TESTS" -eq 1 ]; then
+    echo "Tests built. Run them with: (cd $BUILD_DIR && ctest --output-on-failure)"
+else
+    echo "Tests skipped (pass -t to build them)."
+fi
 
 # 安装（仅在 SKIP_INSTALL=0 时执行）
 if [ $SKIP_INSTALL -eq 0 ]; then

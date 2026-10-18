@@ -8,7 +8,7 @@ build/
 
 # 允许提交测试源码（*test* 仍忽略测试产物）
 !test/
-!test/*.cc
+!test/**/*.cc
 
 # 生成的数据库快照
 *.db
