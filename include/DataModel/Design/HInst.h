@@ -14,7 +14,7 @@ class HInst : public Object {
     friend class Design;
     friend class DesignMemoryMgr;
     // iterators
-    friend class DesignTopHInstIterator;
+    friend class ModuleHInstIterator;
     friend class HInstHInstIterator;
     friend class HInstInstIterator;
     friend class HInstHPinIterator;

@@ -8,8 +8,8 @@
 
 **Design** 是一个完整用户设计的设计上下文，管理该设计的全部私有信息：
 
-- `top_module`：本 Design 的顶层 Module，也是层次根；
-- `HInst` 层次树：从 topmodule 的顶层 HInst 出发，遍历全部 helper Module/出现；
+- `top_module`：本 Design 的顶层 Module，也是层次根和入口；
+- topmodule 持有顶层 HInst 列表；Design 本身不维护 HInst 链表；从 topmodule 出发递归遍历全部 helper Module/出现；
 - 不维护 helper Module 表；helper/base/unique Module 通过 HInst 的 `template` 引用访问。unique Module 仍归其原始 Design。
 - `StringMgr` / `IdArrayMgr` 与对象名称；
 - 逻辑对象（Inst/Net/Pin/Port 等）；
@@ -19,7 +19,7 @@
 
 约束：
 
-- **Design 没有实例化/嵌套概念**。不存在“Design 里的 Design”，也不存在跨 Design 的可变设计对象引用；只读 base Module/库可以共享。
+- **Design 没有实例化/嵌套概念**。不存在“Design 里的 Design”，也不存在跨 Design 的可变设计对象引用；只读 base Module/库可以共享。Design 只持有 topmodule，不持有 HInst 链表。
 - 一个 Design 的持久化快照必须能够恢复该 Design 的完整设计私有状态；`load` 的结果是一个完整 Design。
 - 多 Design 可以并存，但工具以 `current_design` 为当前活动设计；实际流程通常只展开 current_design。
 
@@ -30,9 +30,9 @@
 - Module ports / logical pins；
 - 子 `Inst`（逻辑实例）。
 
-Module 不持有 HInst list/view，也不参与 hierarchy 展开；层次完全由 HInst 树表达。
+Module 定义本身不持有 HInst tree，也不作为层次节点；当它是 Design 的 topmodule 时，额外持有顶层 HInst 列表，并作为层次入口递归处理 HInst 树。
 
-`Net` 不是 Module 私有对象：Design/topmodule 维护**全局唯一的 Net 表**。`HNet` 的 owner 可以是 Module（顶层 HNet）或 HInst（中间 HNet）；`HPin` 归 HInst。Module 不持有 HInst list，也不参与层次容器。
+`Net` 不是 Module 私有对象：Design/topmodule 维护**全局唯一的 Net 表**。`HNet` 的 owner 可以是 Module（顶层 HNet）或 HInst（中间 HNet）；`HPin` 归 HInst。Module 定义不持有 HInst tree；topmodule 持有顶层 HInst 列表并递归处理层次。
 
 归属与身份：
 
@@ -54,7 +54,7 @@ Module 不持有 HInst list/view，也不参与 hierarchy 展开；层次完全�
 - `Inst` 不是层次树节点，也不能展开；它表达 Module 内部的叶实例。Module 实例化永远产生 HInst，不会产生“可展开的 Inst”。
 - `HInst` 是 occurrence；同一个 Module 可以被多个 HInst 出现，路径只属于 HInst。
 - `HInst::GetModule()` 直接返回 `m_module_id`（topmodule），不做父链循环；`HInst::GetHInst()` 直接返回 parent。
-- 顶层 HInst（parent 为空）由 Design 的 top HInst 列表持有；每层 HInst 持有自己的 child list。
+- 顶层 HInst（parent 为空）由 topmodule 的顶层 HInst 列表持有；每层 HInst 持有自己的 child list。Design 不持有 HInst 链表。
 - `Pin` 同时保存 `m_net_id` 和 `m_hnet_id` 两个连接；`Net` 只连接 Pin（不能直接连接 HPin；ModulePort 通过其 io Pin 连接），`HNet` 在所属 HInst 层级连接该层的所有 Pin 和 HPin。HNet 因此能表达本层次的完整连接。
 - `HNet` 的 owner 为 Module 或 HInst（二选一）；HPin 归 HInst；Net 通过 HNet 代理连接到 HPin。Pin 同时保留 Net（全局连接）和 HNet（层次内连接）。
 
@@ -76,10 +76,10 @@ Module 不持有 HInst list/view，也不参与 hierarchy 展开；层次完全�
 
 ## 5. 展开与 TopModule
 
-- `TopModule` 是 Design 的逻辑根；Design 没有额外的 root HInst。
+- `TopModule` 是 Design 的逻辑根和入口；Design 没有额外的 root HInst，也不持有 HInst 链表。
 - hierarchy expansion 永远基于一个 Module：以该 Module 为 template，递归创建 HInst；HInst 管理内部实例化的 child HInst、Inst、HNet，以及边界 HPin 和上下层链接。
 - 初始时 Design 只有 topmodule；展开时才在本 Design 内创建顶层 HInst、子 HInst 和边界对象。
-- 顶层 HInst 由 Design 的 top HInst 列表持有；`HInst::m_module_id` 在创建时设为 topmodule，`m_template_id` 指向实例化 Module。
+- 顶层 HInst 由 topmodule 的顶层 HInst 列表持有；`HInst::m_module_id` 在创建时设为 topmodule，`m_template_id` 指向实例化 Module。
 - 未展开的 HInst 内部链表为空；此时 Module 只能遍历其叶 Inst 定义。展开后从 HInst 自身开始递归向下遍历 child HInst。
 - PathName 以 topmodule 名为根，例如 `top/u0/u1`；由 HInst 父链合成。
 - 进入物理阶段前，topmodule 必须展开或打平；物理数据只在展开/打平后的 Design 视图中有意义。
@@ -120,8 +120,8 @@ Module 不持有 HInst list/view，也不参与 hierarchy 展开；层次完全�
 
 1. Module base 可跨 Design 共享只读；HInst 默认引用 base，必要时 uniquify 为 unique 副本；unique Module 保留原始 Design，不新建 Design；使用它的 helper Design 不管理 helper Module 表。
 2. 不存在 Design 实例；只有 Module 可实例化，且 Module 实例化永远是 HInst。Inst 是 Module 内部的叶实例，不可展开。
-3. Design 只管理 topmodule 与 HInst 树；从 topmodule 沿 HInst 树遍历可达全部层次。
-4. TopModule 是 Design 的根；HInst 树从顶层 HInst 向下展开，Module 不持有 HInst。
+3. Design 只管理 topmodule；topmodule 持有顶层 HInst 列表并递归处理 HInst 树，Design 不持有 HInst 链表。
+4. TopModule 是 Design 的根；HInst 树从 topmodule 的顶层 HInst 向下展开，child HInst 由 HInst 持有。
 5. Module 无唯一路径；PathName 只由 HInst 父链合成。
 6. HInst 的 `m_module_id` 永远是 topmodule；`m_template_id` 是该 HInst 实例化的 Module。
 7. Net 在 Design/topmodule 级唯一；HNet 是 0..N 个层次表示，每个 HNet 唯一对应一个 Net。

@@ -1,6 +1,6 @@
 # Design 是完整设计与持久化根
 
-Design 表示一个完整用户设计，管理 topmodule、顶层 HInst 树、名称池、SDC/MCMM、库引用和物理视图；**不维护 helper Module 表**，unique Module 仍归其原始 Design。HInst 树从 topmodule 遍历全部 helper/unique Modules。Design 没有实例化/嵌套概念；`current_design` 只是当前活动设计。持久化以 Design 为单元，`load` 得到一个完整 Design；共享只读 base（Module/库）通过引用/版本信息参与恢复，unique Modules 通过 HInst 树可达并随快照保存。
+Design 表示一个完整用户设计，管理 topmodule、名称池、SDC/MCMM、库引用和物理视图；**不维护 helper Module 表，也不持有 HInst 链表**。topmodule 持有顶层 HInst 列表并递归处理 HInst 树，从 topmodule 遍历全部 helper/unique Modules；unique Module 仍归其原始 Design。Design 没有实例化/嵌套概念；`current_design` 只是当前活动设计。持久化以 Design 为单元，`load` 得到一个完整 Design；共享只读 base（Module/库）通过引用/版本信息参与恢复，unique Modules 通过 HInst 树可达并随快照保存。
 
 理由：上层工具按需选择并展开一个 Design；Design 必须拥有完整、可持久化的设计私有状态，同时允许只读 base 被多个 Design 复用。可变设计对象跨 Design 共享会让所有权、名称/ID 作用域和持久化边界失控。
 

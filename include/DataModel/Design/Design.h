@@ -24,10 +24,8 @@ public:
     Module*        CreateModule(OperatorType type, const std::string& name = "");
 
     // Creates a hierarchy occurrence of template_module. A null parent links it
-    // into the design's top list; otherwise it becomes a child of parent.
+    // into the topmodule's top-level HInst list; otherwise it becomes a child.
     HInst* CreateHInst(HInst* parent, Module* template_module, std::string_view name);
-
-    ObjectId GetTopHInstHead() const { return m_top_hinst_head_id; }
 
     DesignStringMgr*       GetStringMgr() { return m_string_mgr; }
     const DesignStringMgr* GetStringMgr() const { return m_string_mgr; }
@@ -40,23 +38,10 @@ private:
 
 private:
     ObjectId m_top_module_id{kInvalidId};
-    // top-level hierarchy occurrences
-    ObjectId m_top_hinst_head_id{kInvalidId};
 
     DesignStringMgr*  m_string_mgr{nullptr};
     DesignIdArrayMgr* m_idarray_mgr{nullptr};
     static ObjectId   m_current_design_id;
-};
-
-class DesignTopHInstIterator : public Iterator<HInst> {
-public:
-    DesignTopHInstIterator(Design* design);
-    ~DesignTopHInstIterator() override = default;
-    HInst* Next() override;
-    bool   HasNext() const override { return m_next_hinst_id != kInvalidId; }
-
-private:
-    ObjectId m_next_hinst_id{kInvalidId};
 };
 
 }  // namespace db

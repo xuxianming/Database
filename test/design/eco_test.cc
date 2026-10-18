@@ -65,7 +65,7 @@ TEST_F(EcoTest, RenameReleaseAndPersistence) {
     EXPECT_FALSE(names->Find("h0").has_value());
     EXPECT_TRUE(names->Find("h1").has_value());
     {
-        db::DesignTopHInstIterator iter(design);
+        db::ModuleHInstIterator iter(top);
         ASSERT_TRUE(iter.HasNext());
         HInst* top_hinst = iter.Next();
         ASSERT_NE(top_hinst, nullptr);

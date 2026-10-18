@@ -17,6 +17,7 @@ class BusPort;
 class BusNet;
 
 class Module : public Object {
+    friend class ModuleHInstIterator;
     friend class ModuleInstIterator;
     friend class ModuleNetIterator;
     friend class ModuleHNetIterator;
@@ -59,6 +60,8 @@ private:
     ObjectId     m_net_head_id{kInvalidId};
     ObjectId     m_hnet_head_id{kInvalidId};
     ObjectId     m_inst_head_id{kInvalidId};
+    // Top-level HInst occurrences when this module is the Design topmodule.
+    ObjectId     m_hinst_head_id{kInvalidId};
     ObjectId     m_next_module_id{kInvalidId};
     uint32_t     m_clone_count : 15;
     OperatorType m_operator_type{OperatorType::COUNT};
@@ -68,6 +71,17 @@ private:
 // map so the raw ObjectTable layout of Module stays unchanged.
 void InvalidateModuleNameIndex(ObjectId module_id);
 void ClearModuleNameIndexes();
+
+class ModuleHInstIterator : public Iterator<HInst> {
+public:
+    ModuleHInstIterator(Module* module);
+    ~ModuleHInstIterator() override = default;
+    HInst* Next() override;
+    bool   HasNext() const override { return m_next_hinst_id != kInvalidId; }
+
+private:
+    ObjectId m_next_hinst_id{kInvalidId};
+};
 
 class ModuleInstIterator : public Iterator<Inst> {
 public:

@@ -270,4 +270,25 @@ ModulePort* ModulePortIterator::Next() {
     return port;
 }
 
+
+ModuleHInstIterator::ModuleHInstIterator(Module* module) {
+    if (module == nullptr) {
+        return;
+    }
+    m_next_hinst_id = module->m_hinst_head_id;
+}
+
+HInst* ModuleHInstIterator::Next() {
+    if (m_next_hinst_id == kInvalidId) {
+        return nullptr;
+    }
+    HInst* hinst = DesignMemoryMgr::GetHInst(m_next_hinst_id);
+    if (hinst == nullptr) {
+        m_next_hinst_id = kInvalidId;
+        return nullptr;
+    }
+    m_next_hinst_id = hinst->m_next_hinst_id;
+    return hinst;
+}
+
 }  // namespace db

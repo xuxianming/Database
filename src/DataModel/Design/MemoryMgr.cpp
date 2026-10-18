@@ -205,11 +205,11 @@ void DesignMemoryMgr::DestroyHInst(ObjectId id) {
                     }
                 }
             }
-        } else if (design != nullptr) {
-            if (design->m_top_hinst_head_id == id) {
-                design->m_top_hinst_head_id = hinst->m_next_hinst_id;
+        } else if (Module* top_module = hinst->GetModule(); top_module != nullptr) {
+            if (top_module->m_hinst_head_id == id) {
+                top_module->m_hinst_head_id = hinst->m_next_hinst_id;
             } else {
-                ObjectId cur = design->m_top_hinst_head_id;
+                ObjectId cur = top_module->m_hinst_head_id;
                 while (cur != kInvalidId) {
                     HInst* node = GetHInst(cur);
                     if (node == nullptr) {

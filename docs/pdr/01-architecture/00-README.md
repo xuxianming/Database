@@ -16,10 +16,10 @@
 
 - **Design 是完整设计，也是持久化单元**；`load` 得到一个完整 Design，不是 Design 的实例。
 - **只有 Module 可以被实例化，且 Module 实例化永远是 `HInst`；`Inst` 是 Module 内部不可展开的叶实例（目标 LibCell）。** Design 没有实例化概念。
-- `TopModule` 是 Design 的层次根；Design 持有顶层 HInst 列表，但没有额外 root HInst。
-- `HInst::m_module_id` 永远指向 topmodule；`m_template_id` 指向实例化的 Module 定义。HInst 管理 child HInst、内部 Inst/HNet、边界 HPin；未展开时内部链表为空。
+- `TopModule` 是 Design 的层次根和入口；Design 只持有 topmodule，顶层 HInst 列表由 topmodule 持有，Design 不维护 HInst 链表，也没有额外 root HInst。
+- `HInst::m_module_id` 永远指向 topmodule；`m_template_id` 指向实例化的 Module 定义。topmodule 持有顶层 HInst 列表并递归处理层次；HInst 管理 child HInst、内部 Inst/HNet、边界 HPin；未展开时内部链表为空。
 - `GetDesign`/`GetModule`/`GetHInst` 在创建/展开时赋值：`GetModule` 返回 topmodule，`GetHInst` 返回所属/上层 HInst（顶层 HInst 与 topmodule 直属对象为 null），查询不沿父链循环。
-- Module 默认是跨 Design 共享的只读 base 定义；同一个 Module 可以是 A 的 top、B 的 helper。基础 hierarchy expansion 不做 uniquify，HInst 默认引用 base；需要私有修改时由 HInst uniquify 生成 unique 副本；unique Module 保留原始 Module 的 Design 成员，不新建 Design。Design 不维护 helper Module 表，从 topmodule 沿 HInst 树遍历全部层次。Module 不持有 HInst list/view，也不作为 hierarchy 的一层。
+- Module 默认是跨 Design 共享的只读 base 定义；同一个 Module 可以是 A 的 top、B 的 helper。基础 hierarchy expansion 不做 uniquify，HInst 默认引用 base；需要私有修改时由 HInst uniquify 生成 unique 副本；unique Module 保留原始 Module 的 Design 成员，不新建 Design。Design 不维护 helper Module 表，也不持有 HInst 链表；从 topmodule 沿 HInst 树遍历全部层次。Module 定义本身不持有 HInst tree；topmodule 额外持有顶层 HInst 列表并递归处理层次。
 - 库（TechLib/TimingLib）以跨 Design 的只读 base 共享，按需通过 uniquify 创建 Design 私有副本；SDC 归 Design，支持 MCMM。
 - PathName 由 HInst 父链按需合成，不存 flat path。
 - `Net` 是 topmodule 级唯一逻辑网络，**只连接 Pin**，不能连接 HPin；`Pin` 可同时连接 `Net` 和 `HNet`；`HNet` 在所属 HInst 层级连接该层所有 `Pin` 和 `HPin`，用于表达本层次的完整连接。Net 每穿过一个 HInst，在该 HInst 内创建恰好一条代理 `HNet`。物理数据在 Net，HNet 只做逻辑层次代理。

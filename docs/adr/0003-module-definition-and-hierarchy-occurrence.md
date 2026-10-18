@@ -1,6 +1,6 @@
 # Module 是定义，Inst/HInst 是两类出现
 
-Module 是跨 Design 共享的只读 base 逻辑定义；`Inst` 是 Module 内部不可展开的叶实例（目标 LibCell），`HInst` 是 Module 实例化的唯一层次出现节点（Module 实例化永远产生 HInst）。TopModule 是 Design 的层次根；Design 持有顶层 HInst 列表，但没有额外的 root HInst。执行 hierarchy expansion 时在当前 Design 内建立 HInst 树及 helper Module 引用，**Module 不持有 HInst list/view，也不作为 hierarchy 中的一层**；Design 不维护 helper Module 表；unique Module 仍归原始 Design。PathName 从 topmodule 沿 HInst 父链合成。
+Module 是跨 Design 共享的只读 base 逻辑定义；`Inst` 是 Module 内部不可展开的叶实例（目标 LibCell），`HInst` 是 Module 实例化的唯一层次出现节点（Module 实例化永远产生 HInst）。TopModule 是 Design 的层次根和入口；Design 只持有 topmodule，不持有 HInst 链表；topmodule 持有顶层 HInst 列表，没有额外的 root HInst。执行 hierarchy expansion 时在当前 Design 内建立 HInst 树及 helper Module 引用，**Module 定义本身不持有 HInst tree，也不作为 hierarchy 中的一层；topmodule 额外持有顶层 HInst 列表并递归处理层次**；Design 不维护 helper Module 表；unique Module 仍归原始 Design。PathName 从 topmodule 沿 HInst 父链合成。
 
 `HInst::m_module_id` 永远指向 topmodule，由展开时设置；`m_template_id` 指向该 HInst 实例化的 Module 定义；`m_module_id`/`m_template_id` 可以引用共享 base Module，基础展开不做 uniquify。需要设计私有修改时，HInst 对 Module 执行 uniquify，生成 unique 副本；unique Module 保留原始 Design、不新建 Design。parent/children/sibling 由 HInst 树维护；`HInst::GetModule()` 直接返回 `m_module_id`，不循环；Module 不提供 `GetModule`。
 

@@ -18,7 +18,7 @@ class NameIndexTest : public ::testing::Test {};
 TEST_F(NameIndexTest, PerModuleLookupsAndPersistence) {
     using db::Design;
     using db::DesignMemoryMgr;
-    using db::DesignTopHInstIterator;
+    using db::ModuleHInstIterator;
     using db::HInst;
     using db::HInstHInstIterator;
     using db::Inst;
@@ -87,7 +87,7 @@ TEST_F(NameIndexTest, PerModuleLookupsAndPersistence) {
     EXPECT_EQ(h1->PathName(), "top/h0/h1");
 
     {
-        DesignTopHInstIterator    iter(design);
+        ModuleHInstIterator       iter(top);
         std::vector<db::ObjectId> ids;
         while (iter.HasNext()) {
             HInst* hinst = iter.Next();
@@ -181,7 +181,7 @@ TEST_F(NameIndexTest, PerModuleLookupsAndPersistence) {
     EXPECT_EQ(loaded_h1->PathName(), "top/h0/h1");
 
     {
-        DesignTopHInstIterator iter(loaded_design);
+        ModuleHInstIterator iter(loaded_top);
         ASSERT_TRUE(iter.HasNext());
         EXPECT_EQ(iter.Next(), loaded_h0);
         EXPECT_FALSE(iter.HasNext());

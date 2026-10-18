@@ -8,9 +8,9 @@
 
 ## 2. 持久化
 
-- 持久化以 Design 为单元；快照覆盖 topmodule、HInst 树、从 HInst 可达的 base/unique Modules、名称、SDC、物理视图，以及共享库版本/解析信息。
+- 持久化以 Design 为单元；快照覆盖 topmodule、由 topmodule 可达的 HInst 树、从 HInst 可达的 base/unique Modules、名称、SDC、物理视图，以及共享库版本/解析信息。
 - `load` 应恢复一个完整 Design，不依赖另一个 Design 的内部可变对象；共享 base 只读依赖必须可解析。
-- Design 不维护 helper Module 表；序列化按 HInst 树收集可达 Modules。uniquify 产生的 unique Module 保留原始 Design 成员，不新建 Design，但必须随可达 HInst 树一起持久化。
+- Design 不维护 helper Module 表也不持有 HInst 链表；序列化从 topmodule 的 HInst 树收集可达 Modules。uniquify 产生的 unique Module 保留原始 Design 成员，不新建 Design，但必须随可达 HInst 树一起持久化。
 - 库是共享只读 base；快照必须包含库的版本/解析信息，保证完整设计可恢复。
 - Design 私有修改通过 uniquify 创建副本；快照必须区分“共享 base 引用”和“unique 副本”，unique Module 通过 HInst 树可达并随 Design 快照保存（保留原始 Design 成员）。
 - **待决**：库内容内嵌到 Design 快照，还是保存版本化外部依赖并在 load 时解析？两种方式都需保证“完整设计”语义。

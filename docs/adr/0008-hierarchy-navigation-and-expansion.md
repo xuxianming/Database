@@ -1,6 +1,6 @@
 # 层次展开与统一导航字段
 
-层次展开永远基于一个 Module：以该 Module 为 template，递归创建 HInst。HInst 是层次容器，管理内部实例化的 child HInst、Inst、HNet，以及边界 HPin 和上下层连接；未展开的 HInst 内部链表为空。Module 只保留定义（含叶 Inst），不持有 HInst list/view；从 topmodule 的顶层 HInst 开始递归遍历可访问全部层次。
+层次展开永远基于一个 Module：以该 Module 为 template，递归创建 HInst。Design 只持有 topmodule，不持有 HInst 链表；topmodule 持有顶层 HInst 列表并递归处理层次。HInst 是层次容器，管理内部实例化的 child HInst、Inst、HNet，以及边界 HPin 和上下层连接；未展开的 HInst 内部链表为空。Module 只保留定义（含叶 Inst）；从 topmodule 的顶层 HInst 开始递归遍历可访问全部层次。
 
 所有逻辑对象在创建/展开时写入导航字段，查询直接返回缓存值，禁止沿 parent 链循环：
 

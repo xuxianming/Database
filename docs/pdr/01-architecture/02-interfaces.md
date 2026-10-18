@@ -13,14 +13,14 @@
 
 - 查询/创建 Design 的 topmodule；第一个创建的 Module 默认成为 topmodule，可用 `SetTopModule` 覆盖。
 - Module 默认引用共享 base 定义；HInst 可对 base Module 执行 **uniquify**，生成 unique 副本；unique Module 的 Design 成员仍为原始 Module 的 Design，不新建 Design。
-- 基础 hierarchy expansion 不 uniquify；Design 不维护 helper Module 表，从 topmodule 沿 HInst 树遍历全部层次；unique Module 由原始 Design 管理。
+- 基础 hierarchy expansion 不 uniquify；Design 不维护 helper Module 表，也不持有 HInst 链表；从 topmodule 沿 HInst 树遍历全部层次；unique Module 由原始 Design 管理。
 - 在 Module 内创建 `Inst`，目标是 LibCell；Inst 是 Module 内部叶实例，不可展开。
-- Module 实例化永远创建 HInst。执行 hierarchy expansion：在当前 Design 内创建顶层 HInst、子 HInst 和边界连接；顶层 HInst 由 Design 的 top HInst 列表持有。
+- Module 实例化永远创建 HInst。执行 hierarchy expansion：在当前 Design 内创建顶层 HInst、子 HInst 和边界连接；顶层 HInst 由 topmodule 的顶层 HInst 列表持有。
 - 查询 HInst 的 parent/children/sibling；生成/查询 PathName。
 - `HInst::GetModule()` 直接返回 `m_module_id`（topmodule），不做父链循环；parent 由 `GetHInst()` 直接返回。
 - 统一导航接口：`Module`/`HInst`/`Inst`/`Net`/`HNet`/`HPin` 提供 `GetDesign`；`HInst`/`Inst`/`Net`/`HNet` 提供 `GetModule`，返回 topmodule；`HInst`/`Inst`/`Net`/`HNet` 提供 `GetHInst`：HInst 返回上层 HInst，其余返回所在 HInst；顶层 HInst 与 topmodule 直属对象为 null。
 - `GetDesign`/`GetModule`/`GetHInst` 在创建/层次展开时赋值，直接返回，不沿 parent 链循环。
-- `Module` 不提供顶层接口，也不持有 HInst；`Design` 拥有 topmodule 和顶层 HInst 列表。
+- `Module` 不提供顶层导航接口；topmodule 持有顶层 HInst 列表并递归处理层次；`Design` 只拥有 topmodule。
 - `Inst` 和 `HInst` 不可混用：前者是逻辑实例，后者是层次出现；HInst 管理内部 Inst/HNet/HPin，未展开时内部链表为空。
 
 ## 3. 库

@@ -9,7 +9,7 @@ Database 是 C++20 的 EDA 网表数据库库（参考 OpenDB/iEDA）；本文�
 ### 设计聚合
 
 **Design**：
-一个完整用户设计的设计上下文，也是持久化单元；拥有 topmodule、顶层 HInst 树、名称池、SDC/MCMM、库引用和物理视图。Design 不维护 helper Module 表，从 topmodule 沿 HInst 树遍历全部层次；unique Module 仍归原始 Design。没有实例化/嵌套概念。
+一个完整用户设计的设计上下文，也是持久化单元；拥有 topmodule、名称池、SDC/MCMM、库引用和物理视图。Design 只持有 topmodule，不持有 HInst 链表；topmodule 持有顶层 HInst 并递归处理层次。Design 不维护 helper Module 表，unique Module 仍归原始 Design。没有实例化/嵌套概念。
 _Avoid_: design instance、父 Design、Design 里的 Design
 
 **current_design**：
@@ -31,11 +31,11 @@ Module 内部声明的叶实例；目标是 LibCell；有局部名，不可展�
 _Avoid_: hinst、层次实例、可展开 Inst
 
 **HInst**：
-展开后的层次出现节点；`m_module_id` 永远指向 topmodule，`m_template_id` 指向实例化的 Module 定义；管理 child HInst、内部 Inst/HNet、边界 HPin 和上下层连接；未展开时内部链表为空。具有 parent/children/sibling 和唯一 PathName。`GetModule()` 直接返回 m_module_id，不循环；`GetHInst()` 返回上层 HInst（顶层为 null）。同一个 Module 可有多个 HInst。
+展开后的层次出现节点；`m_module_id` 永远指向 topmodule，`m_template_id` 指向实例化的 Module 定义；topmodule 持有顶层 HInst 列表；HInst 管理 child HInst、内部 Inst/HNet、边界 HPin 和上下层连接；未展开时内部链表为空。具有 parent/children/sibling 和唯一 PathName。`GetModule()` 直接返回 m_module_id，不循环；`GetHInst()` 返回上层 HInst（顶层为 null）。同一个 Module 可有多个 HInst。
 _Avoid_: instance、module instance（单独使用时）、parent module
 
 **Hierarchy expansion**：
-永远基于一个 Module，以它为 template 递归创建 HInst，形成当前 Design 的顶层 HInst、HInst 树和边界连接；HInst 管理内部 Inst/HNet/HPin。Module 不持有 HInst，也不作为层次中的一层。
+永远基于一个 Module，以它为 template 递归创建 HInst；topmodule 持有顶层 HInst 列表并递归处理 HInst 树，HInst 管理 child HInst、内部 Inst/HNet/HPin。Design 不持有 HInst 链表，Module 不作为层次中的一层。
 _Avoid_: design instantiation、展开 Design、Module 层次节点
 
 **Flatten**：

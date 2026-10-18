@@ -51,8 +51,13 @@ HInst* Design::CreateHInst(HInst* parent, Module* template_module, std::string_v
         hinst->m_next_hinst_id        = parent->m_child_hinst_head_id;
         parent->m_child_hinst_head_id = hinst->GetObjectId();
     } else {
-        hinst->m_next_hinst_id = m_top_hinst_head_id;
-        m_top_hinst_head_id    = hinst->GetObjectId();
+        Module* top_module = GetTopModule();
+        if (top_module == nullptr) {
+            DesignMemoryMgr::DestroyHInst(hinst->GetObjectId());
+            return nullptr;
+        }
+        hinst->m_next_hinst_id     = top_module->m_hinst_head_id;
+        top_module->m_hinst_head_id = hinst->GetObjectId();
     }
     return hinst;
 }
@@ -85,26 +90,6 @@ Module* Design::CreateModule(OperatorType type, const std::string& name) {
         module->m_name_id = mgr->AddString(name);
     }
     return module;
-}
-
-DesignTopHInstIterator::DesignTopHInstIterator(Design* design) {
-    if (design == nullptr) {
-        return;
-    }
-    m_next_hinst_id = design->GetTopHInstHead();
-}
-
-HInst* DesignTopHInstIterator::Next() {
-    if (m_next_hinst_id == kInvalidId) {
-        return nullptr;
-    }
-    HInst* hinst = DesignMemoryMgr::GetHInst(m_next_hinst_id);
-    if (hinst == nullptr) {
-        m_next_hinst_id = kInvalidId;
-        return nullptr;
-    }
-    m_next_hinst_id = hinst->m_next_hinst_id;
-    return hinst;
 }
 
 }  // namespace db
