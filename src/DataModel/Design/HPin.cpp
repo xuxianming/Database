@@ -2,10 +2,10 @@
 #include "DataModel/Design/Design.h"
 #include "DataModel/Design/HInst.h"
 #include "DataModel/Design/HNet.h"
-#include "DataModel/Design/Module.h"
+#include "DataModel/Design/ModulePort.h"
 
 namespace db {
-size_t HPin::GetSize() const { return size_t(); }
+size_t HPin::GetSize() const { return sizeof(HPin); }
 
 ModulePort* HPin::GetModulePort() const {
     if (m_port_id == kInvalidId) {
@@ -14,18 +14,14 @@ ModulePort* HPin::GetModulePort() const {
     return DesignMemoryMgr::GetModulePort(m_port_id);
 }
 
-Module* HPin::GetModule() const {
-    HInst* hinst = GetHInst();
-    if (hinst == nullptr) {
-        return nullptr;
+Design* HPin::GetDesign() const {
+    if (m_design_id != kInvalidId) {
+        if (Design* design = DesignMemoryMgr::GetDesign(m_design_id); design != nullptr) {
+            return design;
+        }
     }
-    return hinst->GetModule();
-}
-
-Design* HPin::GetMasterDesign() const {
-    Module* module = GetModule();
-    if (module != nullptr) {
-        return module->GetMasterDesign();
+    if (HInst* hinst = GetHInst(); hinst != nullptr) {
+        return hinst->GetDesign();
     }
     return nullptr;
 }
@@ -67,14 +63,26 @@ void HPin::ConnectUpperHNet(HNet* hnet) {
     if (hnet == nullptr) {
         return;
     }
-    hnet->ConectHPin(this);
+    if (m_upper_hnet_id != kInvalidId && m_upper_hnet_id != hnet->GetObjectId()) {
+        if (HNet* old = DesignMemoryMgr::GetHNet(m_upper_hnet_id); old != nullptr) {
+            old->DisConnectHPin(this);
+        }
+    }
+    m_upper_hnet_id = hnet->GetObjectId();
+    hnet->ConnectHPin(this);
 }
 
 void HPin::ConnectLowerHNet(HNet* hnet) {
     if (hnet == nullptr) {
         return;
     }
-    hnet->ConectHPin(this);
+    if (m_lower_hnet_id != kInvalidId && m_lower_hnet_id != hnet->GetObjectId()) {
+        if (HNet* old = DesignMemoryMgr::GetHNet(m_lower_hnet_id); old != nullptr) {
+            old->DisConnectHPin(this);
+        }
+    }
+    m_lower_hnet_id = hnet->GetObjectId();
+    hnet->ConnectHPin(this);
 }
 void HPin::DisConnectUpperHNet() {
     if (m_upper_hnet_id == kInvalidId) {

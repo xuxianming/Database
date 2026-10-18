@@ -14,8 +14,7 @@ public:
     size_t GetSize() const override;
 
     ModulePort* GetModulePort() const;
-    Module*     GetModule() const;
-    Design*     GetMasterDesign() const;
+    Design*     GetDesign() const;
     HInst*      GetHInst() const;
     HNet*       GetUpperHNet() const;
     HNet*       GetLowerHNet() const;
@@ -29,6 +28,7 @@ public:
 
 private:
     ObjectId m_port_id{kInvalidId};
+    ObjectId m_design_id{kInvalidId};
     ObjectId m_hinst_id{kInvalidId};
     ObjectId m_upper_hnet_id{kInvalidId};
     ObjectId m_lower_hnet_id{kInvalidId};

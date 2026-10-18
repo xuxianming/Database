@@ -6,7 +6,7 @@
 #include "DataModel/Design/Net.h"
 #include "DataModel/Design/Pin.h"
 namespace db {
-size_t db::ModulePort::GetSize() const { return size_t(); }
+size_t db::ModulePort::GetSize() const { return sizeof(ModulePort); }
 
 Module* ModulePort::GetModule() const {
     if (m_module_id == kInvalidId) {
@@ -15,10 +15,10 @@ Module* ModulePort::GetModule() const {
     return DesignMemoryMgr::GetModule(m_module_id);
 }
 
-Design* ModulePort::GetMasterDesign() const {
+Design* ModulePort::GetDesign() const {
     Module* module = GetModule();
     if (module != nullptr) {
-        return module->GetMasterDesign();
+        return module->GetDesign();
     }
     return nullptr;
 }

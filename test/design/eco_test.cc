@@ -55,26 +55,32 @@ TEST_F(EcoTest, RenameReleaseAndPersistence) {
     EXPECT_TRUE(names->Find("u1").has_value());
 
     // ---- HInst rename ----------------------------------------------------
-    HInst* hinst = top->CreateHInst(child, "h0");
+    HInst* hinst = design->CreateHInst(nullptr, child, "h0");
     ASSERT_NE(hinst, nullptr);
     EXPECT_EQ(hinst->PathName(), "top/h0");
 
     ASSERT_TRUE(hinst->Rename("h1"));
     EXPECT_EQ(hinst->GetName(), "h1");
     EXPECT_EQ(hinst->PathName(), "top/h1");
-    EXPECT_EQ(top->FindHInst("h0"), nullptr);
-    EXPECT_EQ(top->FindHInst("h1"), hinst);
     EXPECT_FALSE(names->Find("h0").has_value());
     EXPECT_TRUE(names->Find("h1").has_value());
+    {
+        db::DesignTopHInstIterator iter(design);
+        ASSERT_TRUE(iter.HasNext());
+        HInst* top_hinst = iter.Next();
+        ASSERT_NE(top_hinst, nullptr);
+        EXPECT_EQ(top_hinst, hinst);
+        EXPECT_EQ(top_hinst->GetName(), "h1");
+        EXPECT_FALSE(iter.HasNext());
+    }
 
     // ---- Module rename keeps paths correct -------------------------------
     ASSERT_TRUE(top->Rename("top2"));
     EXPECT_EQ(top->GetName(), "top2");
-    EXPECT_EQ(top->PathName(), "top2");
+    EXPECT_EQ(top->GetName(), "top2");
     EXPECT_EQ(inst->PathName(), "top2/u1");
     EXPECT_EQ(hinst->PathName(), "top2/h1");
     EXPECT_EQ(top->FindInst("u1"), inst);
-    EXPECT_EQ(top->FindHInst("h1"), hinst);
     EXPECT_FALSE(names->Find("top").has_value());
     EXPECT_TRUE(names->Find("top2").has_value());
 

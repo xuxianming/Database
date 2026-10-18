@@ -7,18 +7,18 @@
 namespace db {
 
 /**
- *  HInst is a view of module, it is used to represent the hierarchical structure of design,
+ *  HInst is a hierarchy occurrence of a module; it owns the occurrence-level
+ *  child HInst/Inst/HNet/HPin containers.
  */
 class HInst : public Object {
-    friend class Module;
     friend class Design;
+    friend class DesignMemoryMgr;
     // iterators
+    friend class DesignTopHInstIterator;
     friend class HInstHInstIterator;
     friend class HInstInstIterator;
     friend class HInstHPinIterator;
-    friend class HInstNetIterator;
     friend class HInstHNetIterator;
-    friend class ModuleHInstIterator;
 
 public:
     HInst()           = default;
@@ -27,27 +27,26 @@ public:
     std::string_view GetName() const override;
     std::string PathName() override;
     bool        Rename(std::string_view name);
-    Design* GetMasterDesign() const;
+    Design* GetDesign() const;
     Module* GetModule() const;
-    HInst*  GetUpperHInst() const;
+    // The containing/upper HInst; null for a top-level occurrence.
+    HInst*  GetHInst() const;
     Module* GetTemplateModule() const;
-    void    Unfold();
-    bool    IsUnfolded() const { return m_unfold; }
 
 private:
-    void HierarchyExpansion(Module* template_module);
-
-    static HInst* Create(Module* module, Module* template_module);
-    static HInst* Create(ObjectId module_id, ObjectId template_module_id);
-    static HInst* Create(Module* module, OperatorType type);
-
-private:
+    // Hierarchy tree occurrence. m_module_id always points at the design's top
+    // module; m_template_id is the module definition this occurrence instantiates.
+    ObjectId     m_design_id{kInvalidId};
     ObjectId     m_module_id{kInvalidId};
     ObjectId     m_template_id{kInvalidId};
-    ObjectId     m_hpin_head_id{kInvalidId};
+    ObjectId     m_upper_hinst_id{kInvalidId};
+    ObjectId     m_child_hinst_head_id{kInvalidId};
     ObjectId     m_next_hinst_id{kInvalidId};
-    ObjectNameId m_path_name_id{kInvalidId};
-    uint32_t     m_unfold : 1 {0};
+    ObjectId     m_hpin_head_id{kInvalidId};
+    // HInst-owned occurrence lists. They stay empty until recursive hierarchy
+    // expansion clones the template module's internal objects per occurrence.
+    ObjectId     m_inst_head_id{kInvalidId};
+    ObjectId     m_hnet_head_id{kInvalidId};
 };
 
 class HInstHInstIterator : public Iterator<HInst> {
@@ -55,9 +54,9 @@ public:
     HInstHInstIterator(HInst* hinst);
     ~HInstHInstIterator() override = default;
     HInst* Next() override;
+    bool   HasNext() const override { return m_next_hinst_id != kInvalidId; }
 
 private:
-    Module*  m_template_module;
     ObjectId m_next_hinst_id{kInvalidId};
 };
 
@@ -66,21 +65,10 @@ public:
     HInstInstIterator(HInst* hinst);
     ~HInstInstIterator() override = default;
     Inst* Next() override;
+    bool  HasNext() const override { return m_next_inst_id != kInvalidId; }
 
 private:
-    Module*  m_template_module;
     ObjectId m_next_inst_id{kInvalidId};
-};
-
-class HInstNetIterator : public Iterator<Net> {
-public:
-    HInstNetIterator(HInst* hinst);
-    ~HInstNetIterator() override = default;
-    Net* Next() override;
-
-private:
-    Module*  m_template_module;
-    ObjectId m_next_net_id{kInvalidId};
 };
 
 class HInstHNetIterator : public Iterator<HNet> {
@@ -88,9 +76,9 @@ public:
     HInstHNetIterator(HInst* hinst);
     ~HInstHNetIterator() override = default;
     HNet* Next() override;
+    bool  HasNext() const override { return m_next_hnet_id != kInvalidId; }
 
 private:
-    Module*  m_template_module;
     ObjectId m_next_hnet_id{kInvalidId};
 };
 

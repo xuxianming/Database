@@ -10,6 +10,7 @@ namespace db {
 class Port;
 class LibPort;
 class Module;
+class Design;
 class HInst;
 class LibCell;
 class Pin;
@@ -18,6 +19,7 @@ using InstPinsArray = IdArray<ObjectId, InstPinsArrayId>;
 class Inst : public Object {
     friend class HInst;
     friend class Module;
+    friend class DesignMemoryMgr;
     friend class HInstInstIterator;
     friend class InstPinIterator;
     friend class ModuleInstIterator;
@@ -32,7 +34,7 @@ public:
     Module*              GetModule() const;
     HInst*               GetHInst() const;
     LibCell*             GetLibCell() const;
-    Design*              GetMasterDesign() const;
+    Design*              GetDesign() const;
     void                 Connect(LogicPort port, Net* net);
     uint32_t             PinCount() const;
     InstPinsArray GetPinsArray() const;
@@ -46,10 +48,11 @@ private:
 
 private:
     ObjectId        m_module_id{kInvalidId};
+    ObjectId        m_design_id{kInvalidId};
+    ObjectId        m_top_module_id{kInvalidId};
     ObjectId        m_hinst_id{kInvalidId};
     ObjectId        m_libcell_id{kInvalidId};
     ObjectId        m_macro_id{kInvalidId};
-    ObjectId        m_module_inst_id{kInvalidId};
     ObjectId        m_next_inst_id{kInvalidId};
     ObjectId        m_prev_inst_id{kInvalidId};
     InstPinsArrayId m_pins_array_id{kInvalidId};

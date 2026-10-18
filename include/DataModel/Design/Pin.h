@@ -5,9 +5,9 @@
 
 namespace db {
 class Pin : public Object {
-    friend class HNet;
     friend class DesignMemoryMgr;
     friend class Net;
+    friend class HNet;
     friend class Inst;
     friend class HInst;
     friend class HInstPinIterator;

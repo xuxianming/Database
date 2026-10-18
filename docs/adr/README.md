@@ -25,6 +25,13 @@
 | 编号 | 标题 | 一句话 |
 | --- | --- | --- |
 | 0001 | 字符串池采用追加式 interning | 同名同 ID；0 invalid、1 空串；append-only |
+| 0002 | Design 是完整设计与持久化根 | 无 Design 实例；按 Design load/save |
+| 0003 | Module 是定义，Inst/HInst 是两类出现 | topmodule 为根；展开产生 helper Modules |
+| 0004 | 库基础共享，按需 uniquify；SDC/MCMM 归 Design | 只读 base + Design 私有副本；约束随 Design |
+| 0005 | 物理数据在顶层唯一 Net 上，HNet 仅层次代理 | Inst→LEF Macro；Net 承载寄生；HNet 按 HInst |
+| 0006 | Net 在 HInst 中以唯一代理 HNet 表示层次 | 每个穿过的 HInst 一条 HNet；Net 不连 HPin |
+| 0007 | Module base 共享，HInst 按需 uniquify | base 共享；基础展开不复制；unique 保留原 Design |
+| 0008 | 层次展开与统一导航字段 | HInst 为层次容器；GetDesign/GetModule/GetHInst 展开时赋值，不向上循环 |
 
 新增 ADR 后在此登记一行。
 

@@ -1,4 +1,5 @@
 #include "DataModel/Design/Design.h"
+#include "DataModel/Design/HInst.h"
 #include "DataModel/Design/Module.h"
 namespace db {
 
@@ -22,12 +23,38 @@ Design* Design::GetCurrentDesign() {
     }
     return DesignMemoryMgr::GetDesign(m_current_design_id);
 }
-void Design::Unfold(bool copy_module) {
-    Module* top_module = GetTopModule();
-    if (top_module == nullptr) {
-        return;
+
+HInst* Design::CreateHInst(HInst* parent, Module* template_module, std::string_view name) {
+    if (template_module == nullptr || GetStringMgr() == nullptr) {
+        return nullptr;
     }
-    top_module->Unfold(copy_module);
+
+    const ObjectId top_module_id =
+        parent != nullptr ? parent->m_module_id : (GetTopModule() == nullptr
+                                                       ? kInvalidId
+                                                       : GetTopModule()->GetObjectId());
+    if (top_module_id == kInvalidId) {
+        return nullptr;
+    }
+
+    HInst* hinst = DesignMemoryMgr::CreateHInst();
+    if (hinst == nullptr) {
+        return nullptr;
+    }
+    hinst->m_design_id      = GetObjectId();
+    hinst->m_module_id      = top_module_id;
+    hinst->m_template_id    = template_module->GetObjectId();
+    hinst->m_upper_hinst_id = parent != nullptr ? parent->GetObjectId() : kInvalidId;
+    hinst->m_name_id        = GetStringMgr()->AddString(name);
+
+    if (parent != nullptr) {
+        hinst->m_next_hinst_id        = parent->m_child_hinst_head_id;
+        parent->m_child_hinst_head_id = hinst->GetObjectId();
+    } else {
+        hinst->m_next_hinst_id = m_top_hinst_head_id;
+        m_top_hinst_head_id    = hinst->GetObjectId();
+    }
+    return hinst;
 }
 
 Module* Design::CreateModule(const std::string& name) {
@@ -36,6 +63,9 @@ Module* Design::CreateModule(const std::string& name) {
         return nullptr;
     }
     module->m_design_id = GetObjectId();
+    if (m_top_module_id == kInvalidId) {
+        m_top_module_id = module->GetObjectId();
+    }
     if (DesignStringMgr* mgr = GetStringMgr(); mgr != nullptr) {
         module->m_name_id = mgr->AddString(name);
     }
@@ -48,9 +78,33 @@ Module* Design::CreateModule(OperatorType type, const std::string& name) {
     }
     module->m_design_id     = GetObjectId();
     module->m_operator_type = type;
+    if (m_top_module_id == kInvalidId) {
+        m_top_module_id = module->GetObjectId();
+    }
     if (DesignStringMgr* mgr = GetStringMgr(); mgr != nullptr) {
         module->m_name_id = mgr->AddString(name);
     }
     return module;
 }
+
+DesignTopHInstIterator::DesignTopHInstIterator(Design* design) {
+    if (design == nullptr) {
+        return;
+    }
+    m_next_hinst_id = design->GetTopHInstHead();
+}
+
+HInst* DesignTopHInstIterator::Next() {
+    if (m_next_hinst_id == kInvalidId) {
+        return nullptr;
+    }
+    HInst* hinst = DesignMemoryMgr::GetHInst(m_next_hinst_id);
+    if (hinst == nullptr) {
+        m_next_hinst_id = kInvalidId;
+        return nullptr;
+    }
+    m_next_hinst_id = hinst->m_next_hinst_id;
+    return hinst;
+}
+
 }  // namespace db

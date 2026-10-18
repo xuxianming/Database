@@ -13,6 +13,8 @@ set(DB_UT_SOURCES
     design/inst_create_test.cc
     design/path_name_test.cc
     design/name_index_test.cc
+    design/navigation_api_test.cc
+    design/connectivity_test.cc
     design/eco_test.cc
     design/persistence_roundtrip_test.cc
     liberty/liberty_ports_test.cc

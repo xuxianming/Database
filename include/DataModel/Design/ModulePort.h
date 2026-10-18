@@ -13,7 +13,7 @@ public:
     ~ModulePort() override = default;
     size_t  GetSize() const override;
     Module* GetModule() const;
-    Design* GetMasterDesign() const;
+    Design* GetDesign() const;
     Pin*    GetIoPin() const;
     Net*    GetNet() const;
     HNet*   GetHNet() const;

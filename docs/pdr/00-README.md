@@ -6,12 +6,13 @@ PDR（Product Design Requirements）= 产品最终功能与形态规格书（目
 
 ## 最终目标
 
-<一段话描述产品的最终形态；各模块的细化目标见其 `01-spec.md`。>
+Database 是一个以 Design 为中心的 C++20 EDA 网表数据库：每个 Design 是一个完整设计及持久化单元，拥有 topmodule、Module 定义/展开层次、名称池、SDC/MCMM、库引用与后续物理视图；只有 Module 可实例化，没有 Design 实例。
 
 ## 模块索引
 
 | 区 / 模块 | 定位 | 入口 |
 | :--- | :--- | :--- |
+| 01 | Design / Module / Hierarchy 架构 | [01-architecture/00-README.md](01-architecture/00-README.md) |
 
 <!-- 示例（新增模块时替换并删除本行）：| <区 / 模块名> | <一句话定位> | <目录>/00-README.md | -->
 
@@ -24,7 +25,7 @@ PDR（Product Design Requirements）= 产品最终功能与形态规格书（目
 
 ## 阅读顺序
 
-<先读什么建立整体基线与公共契约，再按模块读规格层，最后看调研 / 场景等附加材料。>
+先读 01-architecture 的 `01-spec` 建立 Design/Module/Inst/HInst 的定义与归属，再读 `02-interfaces` 和 `03-nfr`，最后看 `design/hierarchy.md` 与 `design/physical.md` 的机制细节。
 
 ## 新增模块
 

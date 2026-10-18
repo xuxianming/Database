@@ -33,15 +33,23 @@ TEST_F(PathNameTest, HierarchicalPaths) {
     ASSERT_NE(child, nullptr);
 
     // No view HInst attached yet: module paths are just their local names.
-    EXPECT_EQ(top->PathName(), "top");
-    EXPECT_EQ(child->PathName(), "child");
+    EXPECT_EQ(top->GetName(), "top");
+    EXPECT_EQ(child->GetName(), "child");
 
-    // A hierarchy instance of "child" under "top" gets a synthesized path.
-    HInst* hinst = top->CreateHInst(child, "u0");
+    // A hierarchy occurrence of "child" under the design's top gets a path.
+    HInst* hinst = design->CreateHInst(nullptr, child, "u0");
     ASSERT_NE(hinst, nullptr);
     EXPECT_EQ(hinst->GetName(), "u0");
     EXPECT_EQ(hinst->PathName(), "top/u0");
-    EXPECT_EQ(hinst->GetMasterDesign(), design);
+    EXPECT_EQ(hinst->GetModule(), top);
+    EXPECT_EQ(hinst->GetDesign(), design);
+
+    // Nested occurrences walk the HInst parent chain; no Module view needed.
+    HInst* nested = design->CreateHInst(hinst, top, "u1");
+    ASSERT_NE(nested, nullptr);
+    EXPECT_EQ(nested->GetHInst(), hinst);
+    EXPECT_EQ(nested->GetModule(), top);
+    EXPECT_EQ(nested->PathName(), "top/u0/u1");
 
     // An instance inside "top" is prefixed with the owner module path.
     LibCell* cell = LibertyMemoryMgr::CreateLibCell();
@@ -62,6 +70,7 @@ TEST_F(PathNameTest, HierarchicalPaths) {
     LibertyMemoryMgr liberty_mgr;
     liberty_mgr.Clear();
 
+    DesignMemoryMgr::DestroyHInst(nested->GetObjectId());
     DesignMemoryMgr::DestroyHInst(hinst->GetObjectId());
     DesignMemoryMgr::DestroyModule(child->GetObjectId());
     DesignMemoryMgr::DestroyModule(top->GetObjectId());

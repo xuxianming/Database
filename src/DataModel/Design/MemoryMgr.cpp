@@ -166,7 +166,7 @@ void DesignMemoryMgr::DestroyDesign(ObjectId id) {
 void DesignMemoryMgr::DestroyModule(ObjectId id) {
     Module* module = module_table.Pointer(id);
     if (module != nullptr) {
-        ReleaseName(module->GetMasterDesign(), module->GetNameId());
+        ReleaseName(module->GetDesign(), module->GetNameId());
     }
     InvalidateModuleNameIndex(id);
     module_table.Destroy(id);
@@ -174,10 +174,10 @@ void DesignMemoryMgr::DestroyModule(ObjectId id) {
 void DesignMemoryMgr::DestroyInst(ObjectId id) {
     Inst* inst = inst_table.Pointer(id);
     if (inst != nullptr) {
-        if (Module* module = inst->GetModule(); module != nullptr) {
+        if (Module* module = GetModule(inst->m_module_id); module != nullptr) {
             module->UnlinkInst(inst);
             InvalidateModuleNameIndex(module->GetObjectId());
-            ReleaseName(module->GetMasterDesign(), inst->GetNameId());
+            ReleaseName(module->GetDesign(), inst->GetNameId());
         }
     }
     inst_table.Destroy(id);
@@ -185,11 +185,45 @@ void DesignMemoryMgr::DestroyInst(ObjectId id) {
 void DesignMemoryMgr::DestroyHInst(ObjectId id) {
     HInst* hinst = hinst_table.Pointer(id);
     if (hinst != nullptr) {
-        if (Module* module = hinst->GetModule(); module != nullptr) {
-            module->UnlinkHInst(hinst);
-            InvalidateModuleNameIndex(module->GetObjectId());
-            ReleaseName(module->GetMasterDesign(), hinst->GetNameId());
+        Design* design = hinst->GetDesign();
+        if (hinst->m_upper_hinst_id != kInvalidId) {
+            if (HInst* parent = GetHInst(hinst->m_upper_hinst_id); parent != nullptr) {
+                if (parent->m_child_hinst_head_id == id) {
+                    parent->m_child_hinst_head_id = hinst->m_next_hinst_id;
+                } else {
+                    ObjectId cur = parent->m_child_hinst_head_id;
+                    while (cur != kInvalidId) {
+                        HInst* node = GetHInst(cur);
+                        if (node == nullptr) {
+                            break;
+                        }
+                        if (node->m_next_hinst_id == id) {
+                            node->m_next_hinst_id = hinst->m_next_hinst_id;
+                            break;
+                        }
+                        cur = node->m_next_hinst_id;
+                    }
+                }
+            }
+        } else if (design != nullptr) {
+            if (design->m_top_hinst_head_id == id) {
+                design->m_top_hinst_head_id = hinst->m_next_hinst_id;
+            } else {
+                ObjectId cur = design->m_top_hinst_head_id;
+                while (cur != kInvalidId) {
+                    HInst* node = GetHInst(cur);
+                    if (node == nullptr) {
+                        break;
+                    }
+                    if (node->m_next_hinst_id == id) {
+                        node->m_next_hinst_id = hinst->m_next_hinst_id;
+                        break;
+                    }
+                    cur = node->m_next_hinst_id;
+                }
+            }
         }
+        ReleaseName(design, hinst->GetNameId());
     }
     hinst_table.Destroy(id);
 }

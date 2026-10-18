@@ -10,11 +10,11 @@ namespace db {
 size_t Inst::GetSize() const { return sizeof(Inst); }
 
 std::string_view Inst::GetName() const {
-    Module* module = GetModule();
+    Module* module = m_module_id == kInvalidId ? nullptr : DesignMemoryMgr::GetModule(m_module_id);
     if (module == nullptr) {
         return {};
     }
-    Design* design = module->GetMasterDesign();
+    Design* design = module->GetDesign();
     if (design == nullptr || design->GetStringMgr() == nullptr) {
         return {};
     }
@@ -23,11 +23,14 @@ std::string_view Inst::GetName() const {
 
 std::string Inst::PathName() {
     const std::string name(GetName());
-    Module*           module = GetModule();
-    if (module == nullptr) {
-        return name;
+    std::string       base;
+    if (HInst* hinst = GetHInst(); hinst != nullptr) {
+        base = hinst->PathName();
+    } else if (Module* module =
+                   m_module_id == kInvalidId ? nullptr : DesignMemoryMgr::GetModule(m_module_id);
+               module != nullptr) {
+        base = std::string(module->GetName());
     }
-    const std::string base = module->PathName();
     if (base.empty()) {
         return name;
     }
@@ -38,8 +41,8 @@ std::string Inst::PathName() {
 }
 
 bool Inst::Rename(std::string_view name) {
-    Module* module = GetModule();
-    Design* design = module == nullptr ? nullptr : module->GetMasterDesign();
+    Module* module = m_module_id == kInvalidId ? nullptr : DesignMemoryMgr::GetModule(m_module_id);
+    Design* design = module == nullptr ? nullptr : module->GetDesign();
     if (design == nullptr || design->GetStringMgr() == nullptr) {
         return false;
     }
@@ -55,10 +58,15 @@ bool Inst::Rename(std::string_view name) {
 }
 
 Module* Inst::GetModule() const {
-    if (m_module_id == kInvalidId) {
-        return nullptr;
+    if (m_top_module_id != kInvalidId) {
+        if (Module* top_module = DesignMemoryMgr::GetModule(m_top_module_id); top_module != nullptr) {
+            return top_module;
+        }
     }
-    return DesignMemoryMgr::GetModule(m_module_id);
+    if (Design* design = GetDesign(); design != nullptr) {
+        return design->GetTopModule();
+    }
+    return nullptr;
 }
 
 HInst* Inst::GetHInst() const {
@@ -75,10 +83,22 @@ LibCell* Inst::GetLibCell() const {
     return LibertyMemoryMgr::GetLibCell(m_libcell_id);
 }
 
-Design* Inst::GetMasterDesign() const {
-    Module* module = GetModule();
-    if (module != nullptr) {
-        return module->GetMasterDesign();
+Design* Inst::GetDesign() const {
+    if (m_design_id != kInvalidId) {
+        if (Design* design = DesignMemoryMgr::GetDesign(m_design_id); design != nullptr) {
+            return design;
+        }
+    }
+    if (m_top_module_id != kInvalidId) {
+        if (Module* top_module = DesignMemoryMgr::GetModule(m_top_module_id);
+            top_module != nullptr) {
+            return top_module->GetDesign();
+        }
+    }
+    if (Module* owner =
+            m_module_id == kInvalidId ? nullptr : DesignMemoryMgr::GetModule(m_module_id);
+        owner != nullptr) {
+        return owner->GetDesign();
     }
     return nullptr;
 }
@@ -89,7 +109,7 @@ uint32_t Inst::PinCount() const {
     if (m_pins_array_id == kInvalidId) {
         return 0;
     }
-    auto* array_mgr = GetMasterDesign()->GetIdArrayMgr();
+    auto* array_mgr = GetDesign()->GetIdArrayMgr();
     if (array_mgr == nullptr) {
         return 0;
     }
@@ -102,7 +122,7 @@ InstPinsArray Inst::GetPinsArray() const {
         static const InstPinsArray empty_array;
         return empty_array;
     }
-    auto* array_mgr = GetMasterDesign()->GetIdArrayMgr();
+    auto* array_mgr = GetDesign()->GetIdArrayMgr();
     if (array_mgr == nullptr) {
         static const InstPinsArray empty_array;
         return empty_array;
@@ -136,10 +156,20 @@ Inst* Inst::Create(Module* module, LibCell* libcell) {
     if (inst == nullptr) {
         return nullptr;
     }
-    inst->m_module_id             = module->GetObjectId();
+    Design* design = module->GetDesign();
+    if (design == nullptr || design->GetIdArrayMgr() == nullptr) {
+        DesignMemoryMgr::DestroyInst(inst->GetObjectId());
+        return nullptr;
+    }
+    inst->m_module_id  = module->GetObjectId();
+    inst->m_design_id  = design->GetObjectId();
+    inst->m_hinst_id   = kInvalidId;
+    if (Module* top_module = design->GetTopModule(); top_module != nullptr) {
+        inst->m_top_module_id = top_module->GetObjectId();
+    }
     inst->m_libcell_id            = libcell->GetObjectId();
     LibCellPortsArray ports_array = libcell->GetPortArray();
-    InstPinsArray array(module->GetMasterDesign()->GetIdArrayMgr()->Allocate(ports_array.Size()));
+    InstPinsArray array(design->GetIdArrayMgr()->Allocate(ports_array.Size()));
     for (ObjectId port_id : ports_array) {
         Pin* pin = Pin::Create(inst, port_id);
         if (pin == nullptr) {
@@ -168,7 +198,7 @@ InstPinIterator::InstPinIterator(Inst* inst) {
     if (inst == nullptr) {
         return;
     }
-    auto* array_mgr = inst->GetMasterDesign()->GetIdArrayMgr();
+    auto* array_mgr = inst->GetDesign()->GetIdArrayMgr();
     if (array_mgr == nullptr) {
         return;
     }

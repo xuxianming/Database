@@ -8,7 +8,7 @@
 #include "DataModel/Design/Pin.h"
 
 namespace db {
-size_t HNet::GetSize() const { return size_t(); }
+size_t HNet::GetSize() const { return sizeof(HNet); }
 Net*   HNet::GetNet() const {
     if (m_net_id == kInvalidId) {
         return nullptr;
@@ -24,16 +24,40 @@ HInst* HNet::GetHInst() const {
 }
 
 Module* HNet::GetModule() const {
-    if (m_module_id == kInvalidId) {
-        return nullptr;
+    if (m_top_module_id != kInvalidId) {
+        if (Module* top_module = DesignMemoryMgr::GetModule(m_top_module_id);
+            top_module != nullptr) {
+            return top_module;
+        }
     }
-    return DesignMemoryMgr::GetModule(m_module_id);
+    if (HInst* hinst = GetHInst(); hinst != nullptr) {
+        return hinst->GetModule();
+    }
+    if (m_module_id != kInvalidId) {
+        if (Module* module = DesignMemoryMgr::GetModule(m_module_id); module != nullptr) {
+            Design* design = module->GetDesign();
+            if (design == nullptr || design->GetTopModule() == module) {
+                return module;
+            }
+            return design->GetTopModule();
+        }
+    }
+    return nullptr;
 }
 
-Design* HNet::GetMasterDesign() const {
-    Module* module = GetModule();
-    if (module != nullptr) {
-        return module->GetMasterDesign();
+Design* HNet::GetDesign() const {
+    if (m_design_id != kInvalidId) {
+        if (Design* design = DesignMemoryMgr::GetDesign(m_design_id); design != nullptr) {
+            return design;
+        }
+    }
+    if (HInst* hinst = GetHInst(); hinst != nullptr) {
+        return hinst->GetDesign();
+    }
+    if (m_module_id != kInvalidId) {
+        if (Module* module = DesignMemoryMgr::GetModule(m_module_id); module != nullptr) {
+            return module->GetDesign();
+        }
     }
     return nullptr;
 }
@@ -50,6 +74,7 @@ void HNet::AttachToNet(ObjectId net_id) {
     }
     m_net_id = net_id;
 }
+
 void HNet::ConnectPin(Pin* pin) {
     if (pin == nullptr) {
         return;
@@ -59,9 +84,9 @@ void HNet::ConnectPin(Pin* pin) {
             old->DisConnectPin(pin);
         }
     }
-    pin->m_hnet_id           = GetObjectId();
-    pin->m_hnet_next_pin_id  = m_pin_head_id;
-    pin->m_hnet_prev_pin_id  = kInvalidId;
+    pin->m_hnet_id          = GetObjectId();
+    pin->m_hnet_next_pin_id = m_pin_head_id;
+    pin->m_hnet_prev_pin_id = kInvalidId;
     if (m_pin_head_id != kInvalidId) {
         if (Pin* old_head = DesignMemoryMgr::GetPin(m_pin_head_id); old_head != nullptr) {
             old_head->m_hnet_prev_pin_id = pin->GetObjectId();
@@ -96,7 +121,7 @@ void HNet::DisConnectPin(Pin* pin) {
 
 // HNet's current API does not distinguish upper/lower HPin connections; keep
 // the intrusive list and leave direction assignment to the caller.
-void HNet::ConectHPin(HPin* hpin) {
+void HNet::ConnectHPin(HPin* hpin) {
     if (hpin == nullptr) {
         return;
     }

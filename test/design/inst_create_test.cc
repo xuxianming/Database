@@ -41,7 +41,7 @@ TEST_F(InstCreateTest, ZeroPortLibCell) {
     ASSERT_NE(inst, nullptr);
     EXPECT_EQ(inst->GetName(), "u0");
     EXPECT_EQ(inst->GetModule(), module);
-    EXPECT_EQ(inst->GetMasterDesign(), design);
+    EXPECT_EQ(inst->GetDesign(), design);
     EXPECT_EQ(inst->PinCount(), 0u);
     EXPECT_NE(design->GetIdArrayMgr(), nullptr);
 
