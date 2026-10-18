@@ -42,6 +42,7 @@ PDR、ADR、issue 仍在 [`docs/`](../docs/)；本目录只描述当前讨论定
 
 ## 关联文档
 
+- [仓库 README](../README.md)
 - [根目录 DESIGN.md](../DESIGN.md)
 - [PDR 架构](../docs/pdr/01-architecture/00-README.md)
 - [对象模型规范](../docs/pdr/01-architecture/01-spec.md)
