@@ -15,7 +15,8 @@ C++20 的 EDA 网表数据库，当前聚焦 **logic DB**：Design/Module 层次
 - `Net` / `Pin` / `HNet` / `HPin`：顶层连接与层次代理的分工；
 - `StringMgr`、`ObjectTable`、`IdArrayMgr`、Save/Load 基础设施；
 - CMake shared library、install/export package（`Database::database`）；
-- GoogleTest 单测：当前 39 个测试。
+- DFG 核心对象（DFGGraph/DFGPrim/DFGNode/DFGPin/DFGEdge）及 Design 挂载、内存表和 Save/Load；
+- GoogleTest 单测：当前 41 个测试。
 
 当前仍属于后续工作的部分：
 
@@ -154,6 +155,8 @@ CONTEXT.md     术语表
 - [Design 总览](DESIGN.md)
 - [Logic DB 类级文档索引](doc/README.md)
 - [Logic DB 设计理念](doc/00-overview.md)
+- [Slang RTL 导入设计](doc/SlangImport.md)
+- [DFG RTL/Logic 建模](doc/DFG.md)
 - [PDR 01 架构](docs/pdr/01-architecture/00-README.md)
 - [对象模型规范](docs/pdr/01-architecture/01-spec.md)
 - [概念接口](docs/pdr/01-architecture/02-interfaces.md)
@@ -171,7 +174,7 @@ CONTEXT.md     术语表
 ctest --test-dir build --output-on-failure
 ```
 
-最近一次验证结果：39/39 测试通过，默认构建通过，ASan/UBSan 39/39 通过。
+最近一次验证结果：41/41 测试通过，默认构建通过，ASan/UBSan 41/41 通过。
 
 ## License
 

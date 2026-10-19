@@ -150,7 +150,7 @@ Pin 同时属于 Net/HNet 是层次内完整连接和顶层物理网络共存的
 - HInst/Inst/Net/HNet/HPin 导航字段；
 - Pin 的 Net/HNet 双连接；
 - HNet 的 Pin/HPin 连接容器与 API；
-- 39/39 单测、ASan/UBSan、默认构建通过。
+- 41/41 单测、ASan/UBSan、默认构建通过。
 
 待后续：
 

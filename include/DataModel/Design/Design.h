@@ -7,6 +7,7 @@
 namespace db {
 class Module;
 class HInst;
+class DFGGraph;
 
 class Design : public Object {
     friend class DesignMemoryMgr;
@@ -27,6 +28,11 @@ public:
     // into the topmodule's top-level HInst list; otherwise it becomes a child.
     HInst* CreateHInst(HInst* parent, Module* template_module, std::string_view name);
 
+    // Attaches the design's root DFG. Only a DFGGraph with type Module can be
+    // attached. The graph is owned by the DesignMemoryMgr object graph.
+    bool AttachDFG(DFGGraph* graph);
+    DFGGraph* GetDFG() const;
+
     DesignStringMgr*       GetStringMgr() { return m_string_mgr; }
     const DesignStringMgr* GetStringMgr() const { return m_string_mgr; }
     DesignIdArrayMgr*      GetIdArrayMgr() { return m_idarray_mgr; }
@@ -38,6 +44,7 @@ private:
 
 private:
     ObjectId m_top_module_id{kInvalidId};
+    ObjectId m_dfg_graph_id{kInvalidId};
 
     DesignStringMgr*  m_string_mgr{nullptr};
     DesignIdArrayMgr* m_idarray_mgr{nullptr};

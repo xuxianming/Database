@@ -176,6 +176,13 @@ public:
             --m_size;
         }
     }
+    inline bool IsLive(IdType id) const {
+        if (id == OBJECT_ID_NULL || !IsValidSlot(id)) {
+            return false;
+        }
+        return m_blocks[GetBlockIndex(id)]->IsLive(GetObjectIndex(id));
+    }
+
     inline TYPE* Pointer(IdType id) const {
         if (id == OBJECT_ID_NULL) {
             return nullptr;

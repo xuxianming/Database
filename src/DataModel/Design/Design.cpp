@@ -1,4 +1,6 @@
 #include "DataModel/Design/Design.h"
+#include "DataModel/DFG/DFGGraph.h"
+#include "DataModel/DFG/MemoryMgr.h"
 #include "DataModel/Design/HInst.h"
 #include "DataModel/Design/Module.h"
 namespace db {
@@ -15,6 +17,28 @@ Module* Design::GetTopModule() const {
 }
 
 void Design::SetTopModule(ObjectId top_module_id) { m_top_module_id = top_module_id; }
+
+bool Design::AttachDFG(DFGGraph* graph) {
+    if (graph == nullptr || graph->GetGraphType() != DFGGraphType::Module) {
+        return false;
+    }
+    if (m_dfg_graph_id != kInvalidId && m_dfg_graph_id != graph->GetObjectId()) {
+        return false;
+    }
+    if (graph->GetDesignId() != kInvalidId && graph->GetDesignId() != GetObjectId()) {
+        return false;
+    }
+    m_dfg_graph_id       = graph->GetObjectId();
+    graph->m_design_id   = GetObjectId();
+    return true;
+}
+
+DFGGraph* Design::GetDFG() const {
+    if (m_dfg_graph_id == kInvalidId) {
+        return nullptr;
+    }
+    return DFGMemoryMgr::GetGraph(m_dfg_graph_id);
+}
 
 void    Design::SetCurrentDesign(ObjectId designId) { m_current_design_id = designId; }
 Design* Design::GetCurrentDesign() {

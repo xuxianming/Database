@@ -6,8 +6,11 @@
 #include "DataModel/Liberty/MemoryMgr.h"
 
 namespace db {
+class DFGMemoryMgr;
+
 class Object {
     friend DesignMemoryMgr;
+    friend DFGMemoryMgr;
     friend LibertyMemoryMgr;
 
 public:

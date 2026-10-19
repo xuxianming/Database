@@ -26,6 +26,12 @@ namespace db {
     X(HINST) \
     X(HNET) \
     X(HPIN) \
+    X(DFG_GRAPH) \
+    X(DFG_PRIM) \
+    X(DFG_NODE) \
+    X(DFG_PORT) \
+    X(DFG_PIN) \
+    X(DFG_EDGE) \
     X(DESIGNOBJ_BOUNDARY) \
     X(LIBERTYLIB) \
     X(LIBCELL) \

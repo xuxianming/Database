@@ -6,7 +6,6 @@ enum class InstType : uint8_t {
     kDefault = 0,
     kStdCell,
     kMacro,
-    kSubMod,
     kConstZero,
     kConstOne,
     kIo,

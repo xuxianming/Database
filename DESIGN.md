@@ -321,7 +321,7 @@ HNet 连接该层所有 Pin/HPin 的目的，是让本层次能够展示完整�
 - HNet 连接 Pin 与 HPin 的容器/API；
 - HInst 内部 Inst/HNet/HPin 容器字段与迭代器骨架；
 - `ModuleHInstIterator` 遍历 topmodule 顶层 HInst，`HInstHInstIterator` 遍历 child HInst；
-- 单测 39/39、ASan/UBSan 39/39、默认构建通过。
+- 单测 41/41、ASan/UBSan 41/41、默认构建通过。
 
 ### 尚未实现/待后续
 
@@ -338,6 +338,7 @@ HNet 连接该层所有 Pin/HPin 的目的，是让本层次能够展示完整�
 ## 13. 参考文档
 
 - [类级 logic 文档索引](doc/README.md)
+- [DFG RTL/Logic 建模](doc/DFG.md)
 - [PDR 01 架构总览](docs/pdr/01-architecture/00-README.md)
 - [对象模型规范](docs/pdr/01-architecture/01-spec.md)
 - [概念接口](docs/pdr/01-architecture/02-interfaces.md)

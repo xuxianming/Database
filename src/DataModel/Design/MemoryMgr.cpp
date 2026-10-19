@@ -5,6 +5,8 @@
 #include "DataModel/BusPort.h"
 #include "DataModel/Design/BusNet.h"
 #include "DataModel/Design/Design.h"
+#include "DataModel/DFG/DFGGraph.h"
+#include "DataModel/DFG/MemoryMgr.h"
 #include "DataModel/Design/HInst.h"
 #include "DataModel/Design/HNet.h"
 #include "DataModel/Design/HPin.h"
@@ -155,6 +157,10 @@ BusNet*     DesignMemoryMgr::GetBusNet(ObjectId id) { return bus_net_table.Point
 void DesignMemoryMgr::DestroyDesign(ObjectId id) {
     Design* design = design_table.Pointer(id);
     if (design != nullptr) {
+        if (design->m_dfg_graph_id != kInvalidId) {
+            DFGMemoryMgr::DestroyGraphTree(design->m_dfg_graph_id);
+            design->m_dfg_graph_id = kInvalidId;
+        }
         delete design->m_idarray_mgr;
         design->SetIdArrayMgr(nullptr);
         delete design->m_string_mgr;
@@ -280,6 +286,7 @@ bool DesignMemoryMgr::SaveAll() {
     success &= module_port_table.Save();
     success &= bus_port_table.Save();
     success &= bus_net_table.Save();
+    success &= DFGMemoryMgr::SaveAll();
 
     // 保存元数据文件
     std::string   meta_file = db_path + "/metadata.bin";
@@ -382,6 +389,7 @@ bool DesignMemoryMgr::LoadAll(const std::string& db_pathdir) {
     success &= module_port_table.Load();
     success &= bus_port_table.Load();
     success &= bus_net_table.Load();
+    success &= DFGMemoryMgr::LoadAll();
 
     return success;
 }
@@ -410,6 +418,7 @@ void DesignMemoryMgr::Clear() {
     module_port_table.Clear();
     bus_port_table.Clear();
     bus_net_table.Clear();
+    DFGMemoryMgr::Clear();
 
     Design::SetCurrentDesign(kInvalidId);
 }

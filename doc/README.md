@@ -18,6 +18,8 @@ PDR、ADR、issue 仍在 [`docs/`](../docs/)；本目录只描述当前讨论定
    - [HPin.md](HPin.md)
    - [ModulePort.md](ModulePort.md)
    - [Port.md](Port.md)
+3. [SlangImport.md](SlangImport.md) — slang RTL 导入、对象映射与分阶段扩展设计
+4. [DFG.md](DFG.md) — DFGGraph/DFGPrim/DFGNode/DFGPin/DFGEdge 建模与 slang 吸收
 
 ## 范围
 
