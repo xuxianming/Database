@@ -155,7 +155,6 @@ CONTEXT.md     术语表
 - [Design 总览](DESIGN.md)
 - [Logic DB 类级文档索引](doc/README.md)
 - [Logic DB 设计理念](doc/00-overview.md)
-- [Slang RTL 导入设计](doc/SlangImport.md)
 - [DFG RTL/Logic 建模](doc/DFG.md)
 - [PDR 01 架构](docs/pdr/01-architecture/00-README.md)
 - [对象模型规范](docs/pdr/01-architecture/01-spec.md)

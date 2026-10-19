@@ -1,5 +1,5 @@
 # DFG RTL/Logic 建模设计
-> Status: done ｜ 责任: agent ｜ 创建: 2026-10-19 ｜ 关联: doc/DFG.md / doc/SlangImport.md
+> Status: done ｜ 责任: agent ｜ 创建: 2026-10-19 ｜ 关联: doc/DFG.md
 
 定义 DFG canonical semantic graph：DFGLink（DFGGraph/DFGPrim）、DFGNode、DFGPin、DFGEdge，并说明 graph/prim/node/pin/edge 的 type 分类、与现有 Module/HInst/Inst/Net/Pin 的对应，以及 slang 符号如何吸收。
 
